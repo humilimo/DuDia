@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
-import { normalizeText } from "./normalizeText";
-import type { Product, Sale } from "./types";
-import { storageGet, storageSet, storageRemove } from "./storage";
+import { normalizeText } from "@/src/lib/voice/normalizeText";
+import type { Product, Sale } from "@/src/types";
+import { storageGet, storageSet, storageRemove } from "@/src/lib/storage/storage";
 
 const PRODUCTS_KEY = "feira:products";
 const SALES_KEY = "feira:sales";
@@ -128,64 +128,62 @@ export const store = {
   },
   addSale(s: Omit<Sale, "id" | "timestamp"> & { timestamp?: number }): Sale {
     const sale: Sale = { id: uid(), timestamp: s.timestamp ?? Date.now(), ...s };
-    state = { ...state, sales: [sale, ...state.sales] };
-    if (sale.items && sale.items.length > 0) {
-      sale.items.forEach((item) => store.adjustStock(item.productId, -item.quantity));
-    } else if (sale.productId && sale.quantity) {
-      store.adjustStock(sale.productId, -sale.quantity);
-    } else {
-      emit();
-    }
+    const stockDeltas = saleStockDeltas(sale, -1);
+    state = {
+      sales: [sale, ...state.sales],
+      products: applyStockDeltas(state.products, stockDeltas),
+    };
+    emit();
     return sale;
   },
   undoLast(): Sale | null {
     const [last, ...rest] = state.sales;
     if (!last) return null;
-    state = { ...state, sales: rest };
-    if (last.items && last.items.length > 0) {
-      last.items.forEach((item) => store.adjustStock(item.productId, item.quantity));
-    } else if (last.productId && last.quantity) {
-      store.adjustStock(last.productId, last.quantity);
-    } else {
-      emit();
-    }
+    const stockDeltas = saleStockDeltas(last, 1);
+    state = {
+      sales: rest,
+      products: applyStockDeltas(state.products, stockDeltas),
+    };
+    emit();
     return last;
   },
   findProductByName(name: string): Product | undefined {
     const target = normalizeText(name);
-    return state.products.find(
-      (p) =>
-        normalizeText(p.name) === target ||
-        normalizeText(p.name).includes(target) ||
-        target.includes(normalizeText(p.name)),
-    );
+    if (!target) return undefined;
+    let best: { product: Product; score: number } | null = null;
+    for (const product of state.products) {
+      const candidate = normalizeText(product.name);
+      let score = 0;
+      if (candidate === target) score = 100;
+      else if (candidate.startsWith(target)) score = 70 + target.length;
+      else if (target.startsWith(candidate)) score = 60 + candidate.length;
+      else if (candidate.includes(target)) score = 40 + target.length / Math.max(candidate.length, 1) * 10;
+      else if (target.includes(candidate)) score = 30 + candidate.length / Math.max(target.length, 1) * 10;
+      if (score > 0 && (!best || score > best.score)) best = { product, score };
+    }
+    return best?.product;
   },
 };
 
-export function todayBounds(d: Date = new Date()) {
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const end = start + 24 * 60 * 60 * 1000;
-  return { start, end };
-}
-
-export function getTodayStats(sales: Sale[]) {
-  const { start, end } = todayBounds();
-  const todays = sales.filter((s) => s.timestamp >= start && s.timestamp < end);
-  const total = todays.reduce((acc, s) => acc + s.value, 0);
-  const count = todays.filter((s) => s.value > 0).length;
-  return { total, count, todays };
-}
-
-export function groupByDay(sales: Sale[]) {
-  const map = new Map<string, { date: string; total: number; count: number; sales: Sale[] }>();
-  for (const s of sales) {
-    const d = new Date(s.timestamp);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (!map.has(key)) map.set(key, { date: key, total: 0, count: 0, sales: [] });
-    const entry = map.get(key)!;
-    entry.total += s.value;
-    if (s.value > 0) entry.count += 1;
-    entry.sales.push(s);
+function saleStockDeltas(sale: Sale, sign: 1 | -1): Map<string, number> {
+  const deltas = new Map<string, number>();
+  if (sale.items && sale.items.length > 0) {
+    for (const item of sale.items) {
+      deltas.set(item.productId, (deltas.get(item.productId) ?? 0) + sign * item.quantity);
+    }
+  } else if (sale.productId && sale.quantity) {
+    deltas.set(sale.productId, (deltas.get(sale.productId) ?? 0) + sign * sale.quantity);
   }
-  return Array.from(map.values()).sort((a, b) => (a.date < b.date ? 1 : -1));
+  return deltas;
 }
+
+function applyStockDeltas(products: Product[], deltas: Map<string, number>): Product[] {
+  if (deltas.size === 0) return products;
+  return products.map((p) => {
+    const delta = deltas.get(p.id);
+    if (!delta) return p;
+    return { ...p, stock: Math.max(0, +(p.stock + delta).toFixed(3)) };
+  });
+}
+
+export { todayBounds, getTodayStats, groupByDay } from "./sales";

@@ -235,11 +235,19 @@ Se o parser não entender, use o modo **Manual** na aba Vendas ou cadastre pelo 
 
 | Pasta | Conteúdo |
 |-------|----------|
-| `app/` | Rotas Expo Router (abas) |
-| `src/screens/` | Telas |
-| `src/lib/` | Store, settings, `interpretLocal`, `commands` |
+| `app/` | Rotas Expo Router (thin wrappers que reexportam de `src/features`) |
+| `src/features/<aba>/` | Uma pasta por aba: `screens/`, `components/`, `hooks/`, `logic/` |
+| `src/components/ui/` | Design system (Button, Card, BottomSheet, Toast, etc.) |
+| `src/theme/` | Tokens light/dark, `ThemeProvider`, `useTheme` |
+| `src/lib/domain/` | Store (`useStore`, `store.*`) e helpers de vendas |
+| `src/lib/voice/` | NLU local pt-BR (`interpretLocal`, `commands`, tutoriais) |
+| `src/lib/storage/` | AsyncStorage + settings |
+| `src/lib/utils/` | Feedback háptico, manipulação de imagens |
 | `src/hooks/useSpeech.ts` | Microfone nativo |
-| `assets/` | Ícones e splash |
+| `src/types/` | Tipos compartilhados (`Product`, `Sale`, etc.) |
+| `assets/` | Ícones, splash e branding |
+
+Para agentes de IA, consulte [AGENTS.md](AGENTS.md) (e os aninhados em `app/`, `src/`, `src/features/`, `android/`).
 
 ---
 

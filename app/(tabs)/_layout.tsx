@@ -1,29 +1,24 @@
 import { Tabs } from "expo-router";
 import { ChartColumn, DollarSign, History, Package, User } from "lucide-react-native";
-import { colors } from "@/src/theme";
+import { useTheme } from "@/src/theme";
 
 export default function TabLayout() {
+  const { tokens } = useTheme();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
+        tabBarActiveTintColor: tokens.palette.primary,
+        tabBarInactiveTintColor: tokens.palette.foregroundSubtle,
         tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopColor: colors.border,
+          backgroundColor: tokens.palette.surfaceElevated,
+          borderTopColor: tokens.palette.border,
           height: 72,
           paddingBottom: 10,
           paddingTop: 10,
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
         },
-        tabBarItemStyle: {
-          marginTop: -4,
-        },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "700" },
+        tabBarItemStyle: { marginTop: -2 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
       }}
     >
       <Tabs.Screen

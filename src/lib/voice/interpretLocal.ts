@@ -1,6 +1,6 @@
 import { normalizeText as norm } from "./normalizeText";
 import { parseQuantityPhrase, parseQuantityToken, QTY_WORD_PATTERN } from "./parseQuantity";
-import type { Product } from "./types";
+import type { Product } from "@/src/types";
 
 export type VoiceScreen = "vendas" | "produtos";
 

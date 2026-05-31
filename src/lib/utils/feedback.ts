@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import { settingsStore } from "./settings";
+import { settingsStore } from "@/src/lib/storage/settings";
 
 export async function haptic(ms = 25) {
   if (!settingsStore.get().vibration) return;

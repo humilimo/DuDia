@@ -4,8 +4,8 @@ import {
   type VoiceAction,
   type VoiceScreen,
 } from "./interpretLocal";
-import { store, getProductById } from "./store";
-import type { Product } from "./types";
+import { store, getProductById } from "@/src/lib/domain/store";
+import type { Product } from "@/src/types";
 
 export type { VoiceAction, VoiceScreen };
 
