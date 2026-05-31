@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+/ios
+/android
+
+# Metro
+.metro-health-check*
+
+# Logs
+logs
+*.log
+npm-debug.*
+
+# OS
+.DS_Store
+
+# Env
+.env
+.env*.local
+
+# TypeScript
+*.tsbuildinfo
+
+# Legacy web build artifacts
+.output
+.vinxi
+.tanstack
+.nitro
+.wrangler
+.dev.vars
+
+# Editor
+.idea
+.vscode/*
+!.vscode/extensions.json
