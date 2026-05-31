@@ -12,7 +12,11 @@ import {
 import { useStore, store } from "@/src/lib/domain/store";
 import { useSettings } from "@/src/lib/storage/settings";
 import { useSpeech } from "@/src/hooks/useSpeech";
-import { applyProductsVoice, interpretCommands, type VoiceAction } from "@/src/lib/voice/commands";
+import {
+  applyProductsVoice,
+  interpretCommands,
+  type VoiceAction,
+} from "@/src/lib/voice/commands";
 import { feedback } from "@/src/lib/utils/feedback";
 import { fmtUnit } from "@/src/lib/domain/sales";
 import { MicButton } from "@/src/features/vendas/components/MicButton";
@@ -56,8 +60,14 @@ export function ProdutosScreen() {
       }
       setProcessing(true);
       try {
-        const actions = await interpretCommands(transcript, products, "produtos");
-        const registerAttempt = actions.find((a) => a.action === "register_product");
+        const actions = await interpretCommands(
+          transcript,
+          products,
+          "produtos",
+        );
+        const registerAttempt = actions.find(
+          (a) => a.action === "register_product",
+        );
         const register = actions.find(
           (a) =>
             a.action === "register_product" &&
@@ -81,7 +91,8 @@ export function ProdutosScreen() {
           }
           const result = applyProductsVoice(register);
           feedback(result.ok ? "ok" : "err");
-          if (result.ok) toast.show(`Cadastrado: ${register.product_name}`, "success");
+          if (result.ok)
+            toast.show(`Cadastrado: ${register.product_name}`, "success");
           return;
         }
         const preview = getVoiceStockPreview(actions, products);
@@ -94,7 +105,11 @@ export function ProdutosScreen() {
         }
         let okCount = 0;
         for (const action of actions) {
-          if (action.action === "unknown" || action.action === "register_product") continue;
+          if (
+            action.action === "unknown" ||
+            action.action === "register_product"
+          )
+            continue;
           const result = applyProductsVoice(action);
           if (result.ok) okCount += 1;
         }
@@ -109,9 +124,12 @@ export function ProdutosScreen() {
     onError: (msg) => toast.show(msg, "danger"),
   });
 
-  useEffect(() => () => {
-    void speech.stop();
-  }, [speech]);
+  useEffect(
+    () => () => {
+      void speech.stop();
+    },
+    [speech],
+  );
 
   function openManualForm() {
     setEditProduct(null);
@@ -141,7 +159,9 @@ export function ProdutosScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               accessibilityLabel="Buscar produtos"
-              leadingIcon={<Search size={18} color={tokens.palette.foregroundMuted} />}
+              leadingIcon={
+                <Search size={18} color={tokens.palette.foregroundMuted} />
+              }
             />
             {filteredProducts.length === 0 ? (
               <EmptyState
@@ -174,11 +194,10 @@ export function ProdutosScreen() {
       <View style={styles.footer}>
         <View style={styles.footerRow}>
           <Button
-            label="Limpar estoque"
+            label="Limpar"
             variant="ghost"
             size="md"
             disabled={!hasProducts}
-            icon={<Eraser size={18} color={tokens.palette.foregroundMuted} />}
             accessibilityLabel="Limpar todo o estoque"
             onPress={() => setShowZeroStock(true)}
             style={styles.footerGhost}
@@ -231,26 +250,41 @@ function getVoiceStockPreview(
   products: Product[],
 ): { productName: string; quantity: number; unit: string }[] {
   return actions
-    .filter((action) => action.action === "stock_add" || action.action === "sale_with_product")
+    .filter(
+      (action) =>
+        action.action === "stock_add" || action.action === "sale_with_product",
+    )
     .map((action) => {
       const product =
-        (action.product_id ? products.find((p) => p.id === action.product_id) : undefined) ??
-        (action.product_name ? store.findProductByName(action.product_name) : undefined);
+        (action.product_id
+          ? products.find((p) => p.id === action.product_id)
+          : undefined) ??
+        (action.product_name
+          ? store.findProductByName(action.product_name)
+          : undefined);
       if (!product) return null;
       const quantity =
         action.quantity ??
-        (action.value && product.price > 0 ? +(action.value / product.price).toFixed(3) : 0);
+        (action.value && product.price > 0
+          ? +(action.value / product.price).toFixed(3)
+          : 0);
       if (!quantity || quantity <= 0) return null;
       return { productName: product.name, quantity, unit: product.unit };
     })
-    .filter((item): item is { productName: string; quantity: number; unit: string } => !!item);
+    .filter(
+      (item): item is { productName: string; quantity: number; unit: string } =>
+        !!item,
+    );
 }
 
 function confirmVoiceAdditions(
   items: { productName: string; quantity: number; unit: string }[],
 ): Promise<boolean> {
   return new Promise((resolve) => {
-    const lines = items.map((item) => `Adicionar ${fmtUnit(item.quantity, item.unit)} ${item.productName}`);
+    const lines = items.map(
+      (item) =>
+        `Adicionar ${fmtUnit(item.quantity, item.unit)} ${item.productName}`,
+    );
     Alert.alert("Confirmar entrada no estoque", `${lines.join("\n")}?`, [
       { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
       { text: "Confirmar", onPress: () => resolve(true) },
@@ -260,8 +294,14 @@ function confirmVoiceAdditions(
 
 function confirmVoiceRegister(action: VoiceAction): Promise<boolean> {
   return new Promise((resolve) => {
-    const stock = action.product_stock && action.product_stock > 0 ? action.product_stock : 0;
-    const stockLine = stock > 0 ? fmtUnit(stock, action.product_unit || "kg") : "sem estoque inicial";
+    const stock =
+      action.product_stock && action.product_stock > 0
+        ? action.product_stock
+        : 0;
+    const stockLine =
+      stock > 0
+        ? fmtUnit(stock, action.product_unit || "kg")
+        : "sem estoque inicial";
     Alert.alert(
       "Confirmar cadastro por áudio",
       `Produto: ${action.product_name}\nPreço: R$ ${action.product_price?.toFixed(2).replace(".", ",")}\nUnidade: ${action.product_unit || "kg"}\nEstoque inicial: ${stockLine}`,
@@ -275,7 +315,11 @@ function confirmVoiceRegister(action: VoiceAction): Promise<boolean> {
 
 function makeStyles(t: Tokens) {
   return StyleSheet.create({
-    body: { flex: 1, paddingHorizontal: t.spacing.lg, paddingTop: t.spacing.md },
+    body: {
+      flex: 1,
+      paddingHorizontal: t.spacing.lg,
+      paddingTop: t.spacing.md,
+    },
     listColumn: { flex: 1, gap: t.spacing.sm },
     list: { flex: 1 },
     listContent: { gap: t.spacing.sm, paddingBottom: t.spacing.xxxl },
