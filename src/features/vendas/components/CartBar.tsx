@@ -16,39 +16,46 @@ interface Props {
 export function CartBar({ total, itemCount, onCheckout, onClearCart, rightSlot }: Props) {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
-  const showClear = itemCount > 0 && onClearCart;
+  const hasItems = itemCount > 0;
+  const itemLabel = `${itemCount} ${itemCount === 1 ? "item" : "itens"}`;
 
   return (
     <View style={styles.wrap}>
-      {showClear ? (
+      {onClearCart ? (
         <Button
           label="Limpar"
           variant="ghost"
           size="md"
+          disabled={!hasItems}
           accessibilityLabel="Limpar pedido"
           onPress={onClearCart}
           style={styles.clearBtn}
         />
       ) : null}
-      {total > 0 ? (
-        <Button
-          variant="success"
-          size="lg"
-          accessibilityLabel={`Ver pedido, total ${fmtBRL(total)}, ${itemCount} ${itemCount === 1 ? "item" : "itens"}`}
-          onPress={onCheckout}
-          icon={<ShoppingBag size={20} color={tokens.palette.successForeground} />}
-          style={styles.sellBtn}
-        >
-          <View style={styles.btnContent}>
-            <Text variant="overline" tone="inverse">
-              Ver pedido · {itemCount} {itemCount === 1 ? "item" : "itens"}
-            </Text>
-            <Text variant="display" tone="inverse" style={styles.totalText}>
-              {fmtBRL(total)}
-            </Text>
-          </View>
-        </Button>
-      ) : null}
+      <Button
+        variant="success"
+        size="lg"
+        disabled={!hasItems}
+        accessibilityLabel={
+          hasItems
+            ? `Ver pedido, total ${fmtBRL(total)}, ${itemLabel}`
+            : "Ver pedido, carrinho vazio"
+        }
+        onPress={() => {
+          if (hasItems) onCheckout();
+        }}
+        icon={<ShoppingBag size={20} color={tokens.palette.successForeground} />}
+        style={styles.sellBtn}
+      >
+        <View style={styles.btnContent}>
+          <Text variant="overline" tone="inverse">
+            Ver pedido · {itemLabel}
+          </Text>
+          <Text variant="display" tone="inverse" style={styles.totalText}>
+            {fmtBRL(hasItems ? total : 0)}
+          </Text>
+        </View>
+      </Button>
       {rightSlot}
     </View>
   );

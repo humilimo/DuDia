@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -41,11 +41,13 @@ export function BottomSheet({
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(40)).current;
+  const [keyboardPad, setKeyboardPad] = useState(0);
 
   useEffect(() => {
     if (!visible) {
       fade.setValue(0);
       slide.setValue(40);
+      setKeyboardPad(0);
       return;
     }
     Animated.parallel([
@@ -64,6 +66,27 @@ export function BottomSheet({
     ]).start();
   }, [visible, fade, slide]);
 
+  useEffect(() => {
+    if (!visible) return;
+    const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const subShow = Keyboard.addListener(showEvt, (e) => {
+      setKeyboardPad(e.endCoordinates.height);
+    });
+    const subHide = Keyboard.addListener(hideEvt, () => {
+      setKeyboardPad(0);
+    });
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, [visible]);
+
+  const basePad = insets.bottom + tokens.spacing.lg;
+  const sheetPadBottom = basePad + keyboardPad;
+  const scrollMinWhenKb =
+    keyboardPad > 0 ? Math.max(220, windowH - keyboardPad - insets.top - 100) : undefined;
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Animated.View style={[styles.backdrop, { opacity: fade }]}>
@@ -77,18 +100,14 @@ export function BottomSheet({
           style={[
             styles.sheet,
             {
-              paddingBottom: insets.bottom + tokens.spacing.lg,
+              paddingBottom: sheetPadBottom,
               transform: [{ translateY: slide }],
               maxHeight: Math.min(windowH * 0.88, 640),
             },
             contentStyle,
           ]}
         >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom + 12 : 0}
-            style={styles.kav}
-          >
+          <View style={styles.inner}>
             <View style={styles.handle} />
             {title ? (
               <View style={styles.header}>
@@ -105,11 +124,16 @@ export function BottomSheet({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               bounces={false}
-              contentContainerStyle={styles.scrollInner}
+              contentContainerStyle={[
+                styles.scrollInner,
+                keyboardPad > 0 && scrollMinWhenKb !== undefined
+                  ? { minHeight: scrollMinWhenKb, justifyContent: "center" }
+                  : null,
+              ]}
             >
               {children}
             </ScrollView>
-          </KeyboardAvoidingView>
+          </View>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -131,7 +155,7 @@ function makeStyles(t: Tokens) {
       paddingTop: t.spacing.sm,
       ...t.shadows.lg,
     },
-    kav: { flexGrow: 0, width: "100%" },
+    inner: { width: "100%" },
     scrollInner: {
       flexGrow: 1,
       paddingBottom: t.spacing.md,

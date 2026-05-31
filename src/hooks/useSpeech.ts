@@ -19,11 +19,18 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
   const onErrorRef = useRef(onError);
   const hasPermissionRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
+  const listeningRef = useRef(false);
+  const pendingStartRef = useRef(false);
+  const suppressClientErrorRef = useRef(false);
 
   useEffect(() => {
     onResultRef.current = onResult;
     onErrorRef.current = onError;
   }, [onResult, onError]);
+
+  useEffect(() => {
+    listeningRef.current = listening;
+  }, [listening]);
 
   useEffect(() => {
     try {
@@ -59,11 +66,13 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
   }, [listening]);
 
   useSpeechRecognitionEvent("start", () => {
+    pendingStartRef.current = false;
     startedAtRef.current = Date.now();
     setListening(true);
   });
 
   useSpeechRecognitionEvent("end", () => {
+    pendingStartRef.current = false;
     setListening(false);
     const text = finalRef.current.trim();
     finalRef.current = "";
@@ -79,13 +88,19 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
 
   useSpeechRecognitionEvent("error", (event) => {
     if (event.error === "aborted") return;
+    pendingStartRef.current = false;
     setListening(false);
     startedAtRef.current = null;
     setRecordingDurationMs(0);
+    if (event.error === "client" && suppressClientErrorRef.current) {
+      suppressClientErrorRef.current = false;
+      return;
+    }
     onErrorRef.current?.(event.message || event.error);
   });
 
   const start = useCallback(async () => {
+    if (listeningRef.current || pendingStartRef.current) return;
     if (!hasPermissionRef.current) {
       const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       hasPermissionRef.current = !!perm.granted;
@@ -96,17 +111,33 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
     }
     try {
       finalRef.current = "";
+      pendingStartRef.current = true;
       ExpoSpeechRecognitionModule.start({
         lang,
         interimResults: true,
         continuous: false,
       });
     } catch {
+      pendingStartRef.current = false;
       onErrorRef.current?.("Não foi possível iniciar o microfone.");
     }
   }, [lang]);
 
   const stop = useCallback(() => {
+    if (pendingStartRef.current) {
+      suppressClientErrorRef.current = true;
+      pendingStartRef.current = false;
+      try {
+        ExpoSpeechRecognitionModule.abort();
+      } catch {
+        // ignore
+      }
+      setListening(false);
+      startedAtRef.current = null;
+      setRecordingDurationMs(0);
+      return;
+    }
+    if (!listeningRef.current) return;
     try {
       ExpoSpeechRecognitionModule.stop();
     } catch {
@@ -115,6 +146,8 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
   }, []);
 
   const cancel = useCallback(() => {
+    pendingStartRef.current = false;
+    suppressClientErrorRef.current = false;
     try {
       ExpoSpeechRecognitionModule.abort();
     } catch {

@@ -7,7 +7,8 @@ import type { Product } from "@/src/types";
 import { useTheme, type Tokens } from "@/src/theme";
 import { fmtBRL } from "@/src/lib/domain/sales";
 
-const STEP_ROW_H = 32;
+const STEP_COL_W = 30;
+const STEP_HIT_H = 26;
 
 interface Props {
   product: Product;
@@ -40,17 +41,12 @@ export function ProductSaleTile({
 
   return (
     <Card variant="flat" padding="none" tone={tone} style={[styles.card, { width: tileWidth, height: tileH }]}>
-      <Pressable
-        onPress={onPressEditQuantity}
-        accessibilityRole="button"
-        accessibilityLabel={`${product.name}, ${fmtBRL(product.price)} por ${product.unit}${quantity > 0 ? `, ${quantity} no pedido` : ""}. Toque para alterar quantidade`}
-        style={styles.pressMain}
-      >
-        <View style={styles.avatarWrap}>
+      <View style={styles.body}>
+        <View style={styles.avatarRow}>
           <ProductAvatar
             name={product.name}
             photo={product.photo}
-            size={Math.min(48, Math.floor(tileWidth * 0.36))}
+            size={Math.min(44, Math.floor(tileWidth * 0.34))}
           />
           {quantity > 0 ? (
             <View style={styles.badgeWrap}>
@@ -63,48 +59,57 @@ export function ProductSaleTile({
             </View>
           ) : null}
         </View>
-        <Text variant="caption" numberOfLines={2} style={styles.name}>
-          {product.name}
-        </Text>
-        <Text variant="caption" tone="muted" numberOfLines={1} style={styles.price}>
-          {fmtBRL(product.price)}/{product.unit}
-        </Text>
-        {empty ? (
-          <Text variant="caption" tone="danger" numberOfLines={1} style={styles.stockHint}>
-            Esgotado
-          </Text>
-        ) : low ? (
-          <Text variant="caption" tone="warning" numberOfLines={1} style={styles.stockHint}>
-            {product.stock}
-            {product.unit}
-          </Text>
-        ) : null}
-      </Pressable>
-      {showControls ? (
-        <View style={styles.stepper} accessibilityRole="toolbar">
+        <View style={styles.metaRow}>
           <Pressable
+            onPress={onPressEditQuantity}
             accessibilityRole="button"
-            accessibilityLabel={`Remover um ${product.name}`}
-            style={({ pressed }) => [styles.stepHit, pressed && styles.stepHitPressed]}
-            onPress={onRemove}
-            disabled={quantity <= 0}
-            hitSlop={8}
+            accessibilityLabel={`${product.name}, ${fmtBRL(product.price)} por ${product.unit}${quantity > 0 ? `, ${quantity} no pedido` : ""}. Toque para alterar quantidade`}
+            style={styles.metaTextCol}
           >
-            <Minus size={16} color={tokens.palette.foregroundMuted} />
+            <Text variant="caption" numberOfLines={2} style={styles.name}>
+              {product.name}
+            </Text>
+            <Text variant="caption" tone="muted" numberOfLines={1} style={styles.price}>
+              {fmtBRL(product.price)}/{product.unit}
+            </Text>
+            {empty ? (
+              <Text variant="caption" tone="danger" numberOfLines={1} style={styles.stockHint}>
+                Esgotado
+              </Text>
+            ) : low ? (
+              <Text variant="caption" tone="warning" numberOfLines={1} style={styles.stockHint}>
+                {product.stock}
+                {product.unit}
+              </Text>
+            ) : null}
           </Pressable>
-          <View style={styles.stepDivider} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Adicionar um ${product.name}`}
-            style={({ pressed }) => [styles.stepHit, pressed && styles.stepHitPressed]}
-            onPress={onAdd}
-            disabled={empty || reachedStock}
-            hitSlop={8}
-          >
-            <Plus size={16} color={tokens.palette.foregroundMuted} />
-          </Pressable>
+          {showControls ? (
+            <View style={styles.vStepper} accessibilityRole="toolbar">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remover um ${product.name}`}
+                style={({ pressed }) => [styles.stepHitV, pressed && styles.stepHitPressed]}
+                onPress={onRemove}
+                disabled={quantity <= 0}
+                hitSlop={6}
+              >
+                <Minus size={15} color={tokens.palette.foregroundMuted} />
+              </Pressable>
+              <View style={styles.stepDividerH} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Adicionar um ${product.name}`}
+                style={({ pressed }) => [styles.stepHitV, pressed && styles.stepHitPressed]}
+                onPress={onAdd}
+                disabled={empty || reachedStock}
+                hitSlop={6}
+              >
+                <Plus size={15} color={tokens.palette.foregroundMuted} />
+              </Pressable>
+            </View>
+          ) : null}
         </View>
-      ) : null}
+      </View>
     </Card>
   );
 }
@@ -116,54 +121,62 @@ function makeStyles(t: Tokens) {
       overflow: "hidden",
       flexDirection: "column",
     },
-    pressMain: {
+    body: {
       flex: 1,
       minHeight: 0,
       paddingHorizontal: t.spacing.xs,
       paddingTop: t.spacing.xs,
-      paddingBottom: 4,
-      alignItems: "center",
-      justifyContent: "flex-start",
-      gap: 2,
+      paddingBottom: t.spacing.xs,
     },
-    avatarWrap: {
+    avatarRow: {
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 2,
+      marginBottom: 4,
       position: "relative",
     },
     badgeWrap: {
       position: "absolute",
       top: -4,
-      right: -4,
+      right: "18%",
     },
-    name: { textAlign: "center", width: "100%" },
-    price: { textAlign: "center" },
-    stockHint: { textAlign: "center", fontSize: 10 },
-    stepper: {
+    metaRow: {
+      flex: 1,
       flexDirection: "row",
-      alignItems: "center",
-      alignSelf: "center",
-      height: STEP_ROW_H,
-      marginBottom: t.spacing.xs,
-      marginHorizontal: t.spacing.xs,
-      borderRadius: t.radius.pill,
+      alignItems: "stretch",
+      minHeight: 0,
+      gap: 4,
+    },
+    metaTextCol: {
+      flex: 1,
+      minWidth: 0,
+      justifyContent: "center",
+      gap: 2,
+    },
+    name: { textAlign: "left", width: "100%" },
+    price: { textAlign: "left" },
+    stockHint: { textAlign: "left", fontSize: 10 },
+    vStepper: {
+      width: STEP_COL_W,
+      flexShrink: 0,
+      borderRadius: t.radius.md,
       backgroundColor: t.palette.surfaceMuted,
       overflow: "hidden",
+      alignSelf: "stretch",
+      justifyContent: "center",
     },
-    stepHit: {
+    stepHitV: {
       flex: 1,
-      height: STEP_ROW_H,
+      minHeight: STEP_HIT_H,
       alignItems: "center",
       justifyContent: "center",
-      minWidth: 34,
     },
     stepHitPressed: {
       backgroundColor: t.palette.border,
     },
-    stepDivider: {
-      width: 1,
-      height: 18,
+    stepDividerH: {
+      height: 1,
+      width: "70%",
+      alignSelf: "center",
       backgroundColor: t.palette.borderStrong,
     },
   });

@@ -172,7 +172,7 @@ export function ProdutosScreen() {
       <View style={styles.footer}>
         <View style={styles.footerRow}>
           <Button
-            label="Cadastrar manual"
+            label="Cadastrar"
             variant="success"
             size="lg"
             icon={<Plus size={20} color={tokens.palette.successForeground} />}
