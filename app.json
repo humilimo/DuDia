@@ -4,7 +4,7 @@
     "slug": "dudia",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./DudiaL.png",
+    "icon": "./assets/branding/DudiaL.png",
     "scheme": "dudia",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -16,8 +16,8 @@
       "package": "com.dudia.app",
       "adaptiveIcon": {
         "backgroundColor": "#1d4fd8",
-        "foregroundImage": "./DudiaL.png",
-        "monochromeImage": "./DudiaL.png"
+        "foregroundImage": "./assets/branding/DudiaL.png",
+        "monochromeImage": "./assets/branding/DudiaL.png"
       },
       "permissions": [
         "RECORD_AUDIO",
