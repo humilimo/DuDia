@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
-import { Package, Plus, Search } from "lucide-react-native";
+import { Mic, Package, Plus, Search } from "lucide-react-native";
 import {
   Button,
   EmptyState,
@@ -20,6 +20,7 @@ import { useTheme, type Tokens } from "@/src/theme";
 import type { Product } from "@/src/types";
 import { ProductForm } from "../components/ProductForm";
 import { ProductListItem } from "../components/ProductListItem";
+import { ZeroStockSheet } from "../components/ZeroStockSheet";
 
 export function ProdutosScreen() {
   const { products } = useStore();
@@ -32,6 +33,7 @@ export function ProdutosScreen() {
   const [processing, setProcessing] = useState(false);
   const [awaitingVoiceRegister, setAwaitingVoiceRegister] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showZeroStock, setShowZeroStock] = useState(false);
 
   const sortedProducts = useMemo(
     () =>
@@ -107,22 +109,15 @@ export function ProdutosScreen() {
     void speech.stop();
   }, [speech]);
 
-  function openCadastrarOptions() {
-    Alert.alert("Cadastrar produto", "Escolha como deseja cadastrar:", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Cadastro manual", onPress: () => {
-        setEditProduct(null);
-        setShowForm(true);
-      } },
-      {
-        text: "Cadastro por áudio",
-        onPress: () => {
-          setEditProduct(null);
-          setAwaitingVoiceRegister(true);
-          void speech.start();
-        },
-      },
-    ]);
+  function openManualForm() {
+    setEditProduct(null);
+    setShowForm(true);
+  }
+
+  function startVoiceRegister() {
+    setEditProduct(null);
+    setAwaitingVoiceRegister(true);
+    void speech.start();
   }
 
   return (
@@ -137,16 +132,7 @@ export function ProdutosScreen() {
           <EmptyState
             icon={<Package size={32} color={tokens.palette.primary} />}
             title="Nenhum produto cadastrado"
-            description="Toque em Cadastrar para adicionar o primeiro produto da sua banca."
-            action={
-              <Button
-                label="Cadastrar agora"
-                variant="success"
-                size="lg"
-                icon={<Plus size={20} color={tokens.palette.successForeground} />}
-                onPress={openCadastrarOptions}
-              />
-            }
+            description="Use os botões abaixo: cadastro manual (verde) ou cadastro por áudio (azul)."
           />
         ) : (
           <View style={styles.listColumn}>
@@ -186,25 +172,46 @@ export function ProdutosScreen() {
       </View>
 
       <View style={styles.footer}>
-        <Button
-          label="Cadastrar"
-          variant="success"
-          size="lg"
-          icon={<Plus size={20} color={tokens.palette.successForeground} />}
-          onPress={openCadastrarOptions}
-          style={styles.cadastrarBtn}
-        />
+        <View style={styles.footerRow}>
+          <Button
+            label="Cadastrar manual"
+            variant="success"
+            size="lg"
+            icon={<Plus size={20} color={tokens.palette.successForeground} />}
+            onPress={openManualForm}
+            style={styles.footerBtn}
+          />
+          <Button
+            label="Cadastro por áudio"
+            variant="primary"
+            size="lg"
+            icon={<Mic size={20} color={tokens.palette.primaryForeground} />}
+            onPress={startVoiceRegister}
+            style={styles.footerBtn}
+          />
+        </View>
         {speech.supported ? (
-          <MicButton
-            listening={speech.listening}
-            processing={processing}
-            durationMs={speech.recordingDurationMs}
-            onStart={speech.start}
-            onStop={speech.stop}
-            onCancel={() => {
-              setAwaitingVoiceRegister(false);
-              void speech.cancel();
-            }}
+          <View style={styles.footerRowMic}>
+            <MicButton
+              listening={speech.listening}
+              processing={processing}
+              durationMs={speech.recordingDurationMs}
+              onStart={speech.start}
+              onStop={speech.stop}
+              onCancel={() => {
+                setAwaitingVoiceRegister(false);
+                void speech.cancel();
+              }}
+            />
+          </View>
+        ) : null}
+        {sortedProducts.length > 0 ? (
+          <Button
+            label="Zerar todo o estoque…"
+            variant="ghost"
+            size="sm"
+            onPress={() => setShowZeroStock(true)}
+            style={styles.zeroLink}
           />
         ) : null}
       </View>
@@ -216,6 +223,12 @@ export function ProdutosScreen() {
           setEditProduct(null);
         }}
         editingProduct={editProduct}
+      />
+
+      <ZeroStockSheet
+        visible={showZeroStock}
+        onClose={() => setShowZeroStock(false)}
+        onDone={() => toast.show("Todo o estoque foi zerado", "warning")}
       />
     </ScreenContainer>
   );
@@ -275,12 +288,17 @@ function makeStyles(t: Tokens) {
     list: { flex: 1 },
     listContent: { gap: t.spacing.sm, paddingBottom: t.spacing.xxxl },
     footer: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: t.spacing.md,
+      gap: t.spacing.sm,
       paddingHorizontal: t.spacing.lg,
       paddingVertical: t.spacing.md,
     },
-    cadastrarBtn: { flex: 1 },
+    footerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: t.spacing.sm,
+    },
+    footerBtn: { flex: 1 },
+    footerRowMic: { alignItems: "center" },
+    zeroLink: { alignSelf: "center" },
   });
 }

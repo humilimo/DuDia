@@ -112,9 +112,6 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
     } catch {
       // ignore
     }
-    setListening(false);
-    startedAtRef.current = null;
-    setRecordingDurationMs(0);
   }, []);
 
   const cancel = useCallback(() => {

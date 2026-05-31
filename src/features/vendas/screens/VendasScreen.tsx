@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, FlatList, StyleSheet, useWindowDimensions, View } from "react-native";
-import { Calculator, Check, Mic, Search } from "lucide-react-native";
+import { Check, Search } from "lucide-react-native";
 import {
   EmptyState,
   Input,
   ScreenContainer,
   ScreenHeader,
-  SegmentedControl,
   useToast,
 } from "@/src/components/ui";
 import { useStore, store } from "@/src/lib/domain/store";
@@ -16,7 +15,6 @@ import { applyAction, interpretCommands } from "@/src/lib/voice/commands";
 import { feedback } from "@/src/lib/utils/feedback";
 import { pickTutorial, runTutorial, stopTutorial } from "@/src/lib/voice/tutorial";
 import { useSettings } from "@/src/lib/storage/settings";
-import { storageGet, storageSet } from "@/src/lib/storage/storage";
 import type { PaymentMethod, Product, SaleItem } from "@/src/types";
 import { useTheme, type Tokens } from "@/src/theme";
 import { useOrder } from "../hooks/useOrder";
@@ -27,9 +25,6 @@ import { CheckoutSheet } from "../components/CheckoutSheet";
 import { LowStockBanner } from "../components/LowStockBanner";
 import { VoiceTutorial } from "../components/VoiceTutorial";
 import { MicButton } from "../components/MicButton";
-
-type InputMode = "voz" | "manual";
-const INPUT_MODE_KEY = "feira:inputMode";
 
 const fmtDate = (d: Date) => {
   const raw = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long" }).format(d);
@@ -46,7 +41,6 @@ export function VendasScreen() {
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const stats = useMemo(() => getTodayStats(sales), [sales]);
 
-  const [inputMode, setInputMode] = useState<InputMode>("voz");
   const [processing, setProcessing] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [tutorial, setTutorial] = useState<{ idx: number; total: number; text: string } | null>(null);
@@ -62,16 +56,6 @@ export function VendasScreen() {
     const id = setTimeout(() => setConfirmed(false), 600);
     return () => clearTimeout(id);
   }, [confirmed]);
-
-  useEffect(() => {
-    void storageGet<InputMode | null>(INPUT_MODE_KEY, null).then((saved) => {
-      if (saved === "voz" || saved === "manual") setInputMode(saved);
-    });
-  }, []);
-
-  useEffect(() => {
-    void storageSet(INPUT_MODE_KEY, inputMode);
-  }, [inputMode]);
 
   useEffect(() => {
     if (!cart.hasItems && showCheckout) setShowCheckout(false);
@@ -149,18 +133,11 @@ export function VendasScreen() {
     void speech.stop();
   }, [speech]);
 
-  const switchMode = (mode: InputMode) => {
-    if (mode === inputMode) return;
-    if (mode === "manual" && speech.listening) speech.stop();
-    setInputMode(mode);
-  };
-
   const lowStock = useMemo(
     () => products.filter((p) => p.stock > 0 && p.stock <= settings.lowStockThreshold),
     [products, settings.lowStockThreshold],
   );
 
-  const isVoice = inputMode === "voz";
   const todayLabel = fmtDate(new Date());
   const sortedProducts = useMemo(
     () => [...products].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })),
@@ -225,15 +202,6 @@ export function VendasScreen() {
       <View style={styles.body}>
         {lowStock.length > 0 ? <LowStockBanner products={lowStock} /> : null}
 
-        <SegmentedControl<InputMode>
-          value={inputMode}
-          onChange={switchMode}
-          options={[
-            { value: "manual", label: "Manual", icon: <Calculator size={16} color={isVoice ? tokens.palette.foregroundMuted : tokens.palette.primaryForeground} /> },
-            { value: "voz", label: "Voz", icon: <Mic size={16} color={isVoice ? tokens.palette.primaryForeground : tokens.palette.foregroundMuted} /> },
-          ]}
-        />
-
         {tutorial ? (
           <VoiceTutorial
             idx={tutorial.idx}
@@ -279,7 +247,7 @@ export function VendasScreen() {
                     <ProductSaleTile
                       product={p}
                       quantity={cart.order[p.id] ?? 0}
-                      showControls={!isVoice}
+                      showControls
                       lowStockThreshold={settings.lowStockThreshold}
                       tileWidth={gridMetrics.tileWidth}
                       onAdd={() => {
@@ -307,8 +275,13 @@ export function VendasScreen() {
         total={cart.total}
         itemCount={cart.itemCount}
         onCheckout={() => setShowCheckout(true)}
+        onClearCart={() => {
+          cart.clear();
+          feedback("warn");
+          toast.show("Pedido limpo", "warning");
+        }}
         rightSlot={
-          isVoice && speech.supported ? (
+          speech.supported ? (
             <MicButton
               listening={speech.listening}
               processing={processing}

@@ -9,15 +9,27 @@ interface Props {
   total: number;
   itemCount: number;
   onCheckout: () => void;
+  onClearCart?: () => void;
   rightSlot?: React.ReactNode;
 }
 
-export function CartBar({ total, itemCount, onCheckout, rightSlot }: Props) {
+export function CartBar({ total, itemCount, onCheckout, onClearCart, rightSlot }: Props) {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
+  const showClear = itemCount > 0 && onClearCart;
 
   return (
     <View style={styles.wrap}>
+      {showClear ? (
+        <Button
+          label="Limpar"
+          variant="ghost"
+          size="md"
+          accessibilityLabel="Limpar pedido"
+          onPress={onClearCart}
+          style={styles.clearBtn}
+        />
+      ) : null}
       {total > 0 ? (
         <Button
           variant="success"
@@ -48,10 +60,11 @@ function makeStyles(t: Tokens) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      gap: t.spacing.md,
+      gap: t.spacing.sm,
       paddingHorizontal: t.spacing.lg,
       paddingVertical: t.spacing.md,
     },
+    clearBtn: { flexShrink: 0 },
     sellBtn: { flex: 1, minHeight: 76, paddingVertical: t.spacing.md },
     btnContent: { alignItems: "center", flex: 1 },
     totalText: { fontSize: 26, lineHeight: 30 },

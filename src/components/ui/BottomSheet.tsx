@@ -2,9 +2,13 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   Easing,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
   type ViewStyle,
 } from "react-native";
@@ -33,6 +37,7 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
+  const { height: windowH } = useWindowDimensions();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(40)).current;
@@ -71,23 +76,40 @@ export function BottomSheet({
         <Animated.View
           style={[
             styles.sheet,
-            { paddingBottom: insets.bottom + tokens.spacing.lg, transform: [{ translateY: slide }] },
+            {
+              paddingBottom: insets.bottom + tokens.spacing.lg,
+              transform: [{ translateY: slide }],
+              maxHeight: Math.min(windowH * 0.88, 640),
+            },
             contentStyle,
           ]}
         >
-          <View style={styles.handle} />
-          {title ? (
-            <View style={styles.header}>
-              <Text variant="heading">{title}</Text>
-              <IconButton
-                label="Fechar"
-                icon={<X size={20} color={tokens.palette.foregroundMuted} />}
-                tone="neutral"
-                onPress={onClose}
-              />
-            </View>
-          ) : null}
-          {children}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom + 12 : 0}
+            style={styles.kav}
+          >
+            <View style={styles.handle} />
+            {title ? (
+              <View style={styles.header}>
+                <Text variant="heading">{title}</Text>
+                <IconButton
+                  label="Fechar"
+                  icon={<X size={20} color={tokens.palette.foregroundMuted} />}
+                  tone="neutral"
+                  onPress={onClose}
+                />
+              </View>
+            ) : null}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={styles.scrollInner}
+            >
+              {children}
+            </ScrollView>
+          </KeyboardAvoidingView>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -107,8 +129,13 @@ function makeStyles(t: Tokens) {
       borderTopRightRadius: t.radius.xl,
       paddingHorizontal: t.spacing.xl,
       paddingTop: t.spacing.sm,
-      gap: t.spacing.md,
       ...t.shadows.lg,
+    },
+    kav: { flexGrow: 0, width: "100%" },
+    scrollInner: {
+      flexGrow: 1,
+      paddingBottom: t.spacing.md,
+      gap: t.spacing.md,
     },
     handle: {
       alignSelf: "center",

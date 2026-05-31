@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, PanResponder, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Easing, PanResponder, StyleSheet, View } from "react-native";
 import { Mic, X } from "lucide-react-native";
 import { Text } from "@/src/components/ui";
 import { useTheme, type Tokens } from "@/src/theme";
@@ -35,7 +35,7 @@ export function MicButton({ listening, processing, durationMs, onStart, onStop, 
         onPanResponderGrant: () => {
           if (processing) return;
           setCancelling(false);
-          onStart();
+          void onStart();
         },
         onPanResponderMove: (_e, gesture) => {
           if (processing) return;
@@ -114,19 +114,18 @@ export function MicButton({ listening, processing, durationMs, onStart, onStop, 
           />
         ) : null}
         <Animated.View style={{ transform: [{ scale }] }}>
-          <Pressable
+          <View
             accessibilityRole="button"
             accessibilityLabel={listening ? "Soltar microfone" : "Segurar microfone para falar"}
-            accessibilityState={{ busy: listening }}
-            disabled={processing}
-            style={[styles.btn, listening && styles.btnActive]}
+            accessibilityState={{ busy: listening, disabled: processing }}
+            style={[styles.btn, listening && styles.btnActive, processing && styles.btnDisabled]}
             {...panResponder.panHandlers}
           >
             <Mic
               size={28}
               color={listening ? tokens.palette.dangerForeground : tokens.palette.primaryForeground}
             />
-          </Pressable>
+          </View>
         </Animated.View>
       </View>
     </View>
@@ -167,5 +166,6 @@ function makeStyles(t: Tokens) {
       ...t.shadows.md,
     },
     btnActive: { backgroundColor: t.palette.danger },
+    btnDisabled: { opacity: 0.45 },
   });
 }
