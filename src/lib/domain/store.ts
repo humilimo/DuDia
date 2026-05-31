@@ -126,14 +126,6 @@ export const store = {
     };
     emit();
   },
-  zeroAllProductStock() {
-    if (state.products.length === 0) return;
-    state = {
-      ...state,
-      products: state.products.map((p) => ({ ...p, stock: 0 })),
-    };
-    emit();
-  },
   addSale(s: Omit<Sale, "id" | "timestamp"> & { timestamp?: number }): Sale {
     const sale: Sale = { id: uid(), timestamp: s.timestamp ?? Date.now(), ...s };
     const stockDeltas = saleStockDeltas(sale, -1);

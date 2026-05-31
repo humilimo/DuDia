@@ -20,7 +20,6 @@ import { useTheme, type Tokens } from "@/src/theme";
 import type { Product } from "@/src/types";
 import { ProductForm } from "../components/ProductForm";
 import { ProductListItem } from "../components/ProductListItem";
-import { ZeroStockSheet } from "../components/ZeroStockSheet";
 
 export function ProdutosScreen() {
   const { products } = useStore();
@@ -33,7 +32,6 @@ export function ProdutosScreen() {
   const [processing, setProcessing] = useState(false);
   const [awaitingVoiceRegister, setAwaitingVoiceRegister] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showZeroStock, setShowZeroStock] = useState(false);
 
   const sortedProducts = useMemo(
     () =>
@@ -132,7 +130,7 @@ export function ProdutosScreen() {
           <EmptyState
             icon={<Package size={32} color={tokens.palette.primary} />}
             title="Nenhum produto cadastrado"
-            description="Use os botões abaixo: cadastro manual (verde) ou cadastro por áudio (azul)."
+            description="Use os botões abaixo: cadastro manual (verde) ou ícone de microfone (azul) para cadastro por áudio."
           />
         ) : (
           <View style={styles.listColumn}>
@@ -182,12 +180,12 @@ export function ProdutosScreen() {
             style={styles.footerBtn}
           />
           <Button
-            label="Cadastro por áudio"
             variant="primary"
             size="lg"
-            icon={<Mic size={20} color={tokens.palette.primaryForeground} />}
+            icon={<Mic size={24} color={tokens.palette.primaryForeground} />}
+            accessibilityLabel="Cadastro por áudio"
             onPress={startVoiceRegister}
-            style={styles.footerBtn}
+            style={styles.footerBtnMic}
           />
         </View>
         {speech.supported ? (
@@ -205,15 +203,6 @@ export function ProdutosScreen() {
             />
           </View>
         ) : null}
-        {sortedProducts.length > 0 ? (
-          <Button
-            label="Zerar todo o estoque…"
-            variant="ghost"
-            size="sm"
-            onPress={() => setShowZeroStock(true)}
-            style={styles.zeroLink}
-          />
-        ) : null}
       </View>
 
       <ProductForm
@@ -225,11 +214,6 @@ export function ProdutosScreen() {
         editingProduct={editProduct}
       />
 
-      <ZeroStockSheet
-        visible={showZeroStock}
-        onClose={() => setShowZeroStock(false)}
-        onDone={() => toast.show("Todo o estoque foi zerado", "warning")}
-      />
     </ScreenContainer>
   );
 }
@@ -298,7 +282,7 @@ function makeStyles(t: Tokens) {
       gap: t.spacing.sm,
     },
     footerBtn: { flex: 1 },
+    footerBtnMic: { flex: 1, minWidth: 56, paddingHorizontal: t.spacing.lg },
     footerRowMic: { alignItems: "center" },
-    zeroLink: { alignSelf: "center" },
   });
 }

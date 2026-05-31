@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, PanResponder, StyleSheet, View } from "react-native";
 import { Mic, X } from "lucide-react-native";
-import { Text } from "@/src/components/ui";
 import { useTheme, type Tokens } from "@/src/theme";
 
 interface Props {
@@ -13,14 +12,7 @@ interface Props {
   onCancel: () => void;
 }
 
-const fmtDuration = (ms: number) => {
-  const totalSec = Math.floor(ms / 1000);
-  const min = String(Math.floor(totalSec / 60)).padStart(2, "0");
-  const sec = String(totalSec % 60).padStart(2, "0");
-  return `${min}:${sec}`;
-};
-
-export function MicButton({ listening, processing, durationMs, onStart, onStop, onCancel }: Props) {
+export function MicButton({ listening, processing, durationMs: _durationMs, onStart, onStop, onCancel }: Props) {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const [cancelling, setCancelling] = useState(false);
@@ -89,18 +81,12 @@ export function MicButton({ listening, processing, durationMs, onStart, onStop, 
   return (
     <View style={styles.wrap}>
       {listening ? (
-        <View style={[styles.cancelTarget, cancelling && styles.cancelTargetActive]}>
-          <X size={14} color={cancelling ? tokens.palette.dangerForeground : tokens.palette.danger} />
-          <Text variant="caption" tone={cancelling ? "inverse" : "danger"}>
-            {cancelling ? "Solte para cancelar" : "Arraste para cancelar"}
-          </Text>
-        </View>
-      ) : null}
-      {listening ? (
-        <View style={styles.durationPill}>
-          <Text variant="caption" tone="primary">
-            {fmtDuration(durationMs)}
-          </Text>
+        <View
+          style={[styles.cancelTarget, cancelling && styles.cancelTargetActive]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <X size={18} color={cancelling ? tokens.palette.dangerForeground : tokens.palette.danger} />
         </View>
       ) : null}
       <View style={styles.btnArea}>
@@ -117,6 +103,9 @@ export function MicButton({ listening, processing, durationMs, onStart, onStop, 
           <View
             accessibilityRole="button"
             accessibilityLabel={listening ? "Soltar microfone" : "Segurar microfone para falar"}
+            accessibilityHint={
+              listening ? "Arraste para cima e solte para cancelar a gravação." : undefined
+            }
             accessibilityState={{ busy: listening, disabled: processing }}
             style={[styles.btn, listening && styles.btnActive, processing && styles.btnDisabled]}
             {...panResponder.panHandlers}
@@ -136,24 +125,16 @@ function makeStyles(t: Tokens) {
   return StyleSheet.create({
     wrap: { alignItems: "center", gap: 6 },
     cancelTarget: {
-      flexDirection: "row",
       alignItems: "center",
-      gap: 6,
-      borderRadius: t.radius.pill,
-      paddingHorizontal: t.spacing.md,
-      paddingVertical: 4,
+      justifyContent: "center",
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       backgroundColor: t.palette.dangerSoft,
       borderWidth: 1,
       borderColor: t.palette.danger,
     },
     cancelTargetActive: { backgroundColor: t.palette.danger, borderColor: t.palette.danger },
-    durationPill: {
-      backgroundColor: t.palette.surfaceElevated,
-      paddingHorizontal: t.spacing.sm,
-      paddingVertical: 2,
-      borderRadius: t.radius.pill,
-      ...t.shadows.sm,
-    },
     btnArea: { alignItems: "center", justifyContent: "center", width: 72, height: 72 },
     ring: { position: "absolute", width: 72, height: 72, borderRadius: 36 },
     btn: {
