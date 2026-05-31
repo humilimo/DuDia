@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
-import { Minus, Pencil, Plus } from "lucide-react-native";
-import { Badge, Card, IconButton, Text } from "@/src/components/ui";
+import { Pencil } from "lucide-react-native";
+import { Badge, Card, IconButton, QuantityStepper, Text } from "@/src/components/ui";
 import { ProductAvatar } from "@/src/components/ProductAvatar";
 import { store } from "@/src/lib/domain/store";
 import { feedback } from "@/src/lib/utils/feedback";
@@ -44,26 +44,22 @@ export function ProductListItem({ product, lowStockThreshold, onEdit }: Props) {
             </Text>
           )}
         </View>
+        <QuantityStepper
+          onDecrement={() => {
+            store.adjustStock(product.id, -1);
+            feedback("ok");
+          }}
+          onIncrement={() => {
+            store.adjustStock(product.id, 1);
+            feedback("ok");
+          }}
+          decrementDisabled={empty}
+          incrementDisabled={false}
+          decrementAccessibilityLabel={`Diminuir estoque de ${product.name}`}
+          incrementAccessibilityLabel={`Aumentar estoque de ${product.name}`}
+          style={styles.stepper}
+        />
       </View>
-      <IconButton
-        label={`Diminuir estoque de ${product.name}`}
-        tone="danger"
-        icon={<Minus size={20} color={tokens.palette.danger} />}
-        onPress={() => {
-          store.adjustStock(product.id, -1);
-          feedback("ok");
-        }}
-        disabled={empty}
-      />
-      <IconButton
-        label={`Aumentar estoque de ${product.name}`}
-        tone="success"
-        icon={<Plus size={20} color={tokens.palette.success} />}
-        onPress={() => {
-          store.adjustStock(product.id, 1);
-          feedback("ok");
-        }}
-      />
       <IconButton
         label={`Editar ${product.name}`}
         tone="neutral"
@@ -77,7 +73,8 @@ export function ProductListItem({ product, lowStockThreshold, onEdit }: Props) {
 function makeStyles(t: Tokens) {
   return StyleSheet.create({
     row: { flexDirection: "row", alignItems: "center", gap: t.spacing.sm },
-    info: { flex: 1, gap: 2 },
+    info: { flex: 1, minWidth: 0, gap: t.spacing.xs },
     metaRow: { flexDirection: "row", alignItems: "center", gap: t.spacing.xs, flexWrap: "wrap" },
+    stepper: { marginTop: 2 },
   });
 }

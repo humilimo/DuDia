@@ -12,4 +12,5 @@ export { ScreenContainer } from "./ScreenContainer";
 export { ScreenHeader, type ScreenHeaderProps } from "./ScreenHeader";
 export { StatCard, type StatCardProps } from "./StatCard";
 export { Divider } from "./Divider";
+export { QuantityStepper, type QuantityStepperProps } from "./QuantityStepper";
 export { ToastProvider, useToast } from "./Toast";
