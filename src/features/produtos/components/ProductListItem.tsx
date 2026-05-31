@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { Alert, StyleSheet, View } from "react-native";
-import { Minus, Plus, Trash2 } from "lucide-react-native";
+import { StyleSheet, View } from "react-native";
+import { Minus, Pencil, Plus } from "lucide-react-native";
 import { Badge, Card, IconButton, Text } from "@/src/components/ui";
 import { ProductAvatar } from "@/src/components/ProductAvatar";
 import { store } from "@/src/lib/domain/store";
@@ -12,28 +12,15 @@ import type { Product } from "@/src/types";
 interface Props {
   product: Product;
   lowStockThreshold: number;
+  onEdit: (product: Product) => void;
 }
 
-export function ProductListItem({ product, lowStockThreshold }: Props) {
+export function ProductListItem({ product, lowStockThreshold, onEdit }: Props) {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const empty = product.stock <= 0;
   const low = !empty && product.stock <= lowStockThreshold;
   const tone = empty ? "danger" : low ? "warning" : "default";
-
-  const askDelete = () => {
-    Alert.alert("Excluir produto", `Excluir ${product.name}?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Excluir",
-        style: "destructive",
-        onPress: () => {
-          store.removeProduct(product.id);
-          feedback("warn");
-        },
-      },
-    ]);
-  };
 
   return (
     <Card variant="flat" padding="sm" tone={tone} style={styles.row}>
@@ -78,10 +65,10 @@ export function ProductListItem({ product, lowStockThreshold }: Props) {
         }}
       />
       <IconButton
-        label={`Excluir ${product.name}`}
+        label={`Editar ${product.name}`}
         tone="neutral"
-        icon={<Trash2 size={18} color={tokens.palette.foregroundMuted} />}
-        onPress={askDelete}
+        icon={<Pencil size={18} color={tokens.palette.foregroundMuted} />}
+        onPress={() => onEdit(product)}
       />
     </Card>
   );

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, ScrollView, StyleSheet, View } from "react-native";
-import { Calculator, Check, Mic } from "lucide-react-native";
+import { Animated, Easing, FlatList, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Calculator, Check, Mic, Search } from "lucide-react-native";
 import {
   EmptyState,
+  Input,
   ScreenContainer,
   ScreenHeader,
   SegmentedControl,
@@ -19,8 +20,9 @@ import { storageGet, storageSet } from "@/src/lib/storage/storage";
 import type { PaymentMethod, Product, SaleItem } from "@/src/types";
 import { useTheme, type Tokens } from "@/src/theme";
 import { useOrder } from "../hooks/useOrder";
-import { ProductRow } from "../components/ProductRow";
 import { CartBar } from "../components/CartBar";
+import { OrderQuantitySheet } from "../components/OrderQuantitySheet";
+import { ProductSaleTile } from "../components/ProductSaleTile";
 import { CheckoutSheet } from "../components/CheckoutSheet";
 import { LowStockBanner } from "../components/LowStockBanner";
 import { VoiceTutorial } from "../components/VoiceTutorial";
@@ -49,7 +51,10 @@ export function VendasScreen() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [tutorial, setTutorial] = useState<{ idx: number; total: number; text: string } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [qtySheetProduct, setQtySheetProduct] = useState<Product | null>(null);
 
+  const { width: windowWidth } = useWindowDimensions();
   const cart = useOrder(products);
 
   useEffect(() => {
@@ -74,6 +79,10 @@ export function VendasScreen() {
 
   const speech = useSpeech({
     onResult: async (transcript) => {
+      if (!transcript.trim()) {
+        setProcessing(false);
+        return;
+      }
       const tut = pickTutorial(transcript);
       if (tut) {
         feedback("ok");
@@ -104,7 +113,11 @@ export function VendasScreen() {
           if (!product) continue;
           const requested =
             action.quantity ??
-            (action.value ? Math.max(1, Math.round(action.value / product.price)) : 1);
+            (action.value
+              ? product.unit === "un"
+                ? Math.max(1, Math.round(action.value / product.price))
+                : Math.max(0.001, +(action.value / product.price).toFixed(3))
+              : 1);
           saleLines.push({ product, requested });
         }
 
@@ -153,6 +166,20 @@ export function VendasScreen() {
     () => [...products].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })),
     [products],
   );
+
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sortedProducts;
+    return sortedProducts.filter((p) => p.name.toLowerCase().includes(q));
+  }, [sortedProducts, searchQuery]);
+
+  const gridMetrics = useMemo(() => {
+    const horizontalPad = tokens.spacing.lg * 2;
+    const innerWidth = windowWidth - horizontalPad;
+    const gap = tokens.spacing.sm;
+    const tileWidth = (innerWidth - gap * 2) / 3;
+    return { gap, tileWidth };
+  }, [windowWidth, tokens.spacing.lg, tokens.spacing.sm]);
 
   const registerSale = (paymentMethod: PaymentMethod) => {
     const items = products
@@ -225,32 +252,54 @@ export function VendasScreen() {
             description="Vá até a aba Produtos e cadastre os itens da sua banca."
           />
         ) : (
-          <ScrollView
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            {sortedProducts.map((p) => (
-              <ProductRow
-                key={p.id}
-                product={p}
-                quantity={cart.order[p.id] ?? 0}
-                showControls={!isVoice}
-                lowStockThreshold={settings.lowStockThreshold}
-                onAdd={() => {
-                  const result = cart.add(p, 1);
-                  feedback(result.status === "none" ? "err" : "ok");
-                  if (result.status === "none") {
-                    toast.show(`Sem estoque de ${p.name}`, "warning");
-                  }
-                }}
-                onRemove={() => {
-                  cart.remove(p.id);
-                  feedback("ok");
-                }}
+          <>
+            <Input
+              placeholder="Buscar produtos…"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              accessibilityLabel="Buscar produtos"
+              leadingIcon={<Search size={18} color={tokens.palette.foregroundMuted} />}
+            />
+            {filteredProducts.length === 0 ? (
+              <EmptyState
+                title="Nenhum produto encontrado"
+                description="Tente outro nome na busca."
               />
-            ))}
-          </ScrollView>
+            ) : (
+              <FlatList
+                data={filteredProducts}
+                keyExtractor={(item) => item.id}
+                numColumns={3}
+                style={styles.list}
+                columnWrapperStyle={{ gap: gridMetrics.gap, marginBottom: gridMetrics.gap }}
+                contentContainerStyle={styles.listContent}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item: p }) => (
+                  <View style={{ width: gridMetrics.tileWidth }}>
+                    <ProductSaleTile
+                      product={p}
+                      quantity={cart.order[p.id] ?? 0}
+                      showControls={!isVoice}
+                      lowStockThreshold={settings.lowStockThreshold}
+                      tileWidth={gridMetrics.tileWidth}
+                      onAdd={() => {
+                        const result = cart.add(p, 1);
+                        feedback(result.status === "none" ? "err" : "ok");
+                        if (result.status === "none") {
+                          toast.show(`Sem estoque de ${p.name}`, "warning");
+                        }
+                      }}
+                      onRemove={() => {
+                        cart.remove(p);
+                        feedback("ok");
+                      }}
+                      onPressEditQuantity={() => setQtySheetProduct(p)}
+                    />
+                  </View>
+                )}
+              />
+            )}
+          </>
         )}
       </View>
 
@@ -266,7 +315,10 @@ export function VendasScreen() {
               durationMs={speech.recordingDurationMs}
               onStart={speech.start}
               onStop={speech.stop}
-              onCancel={speech.cancel}
+              onCancel={() => {
+                setProcessing(false);
+                void speech.cancel();
+              }}
             />
           ) : null
         }
@@ -277,6 +329,18 @@ export function VendasScreen() {
         total={cart.total}
         onClose={() => setShowCheckout(false)}
         onConfirm={registerSale}
+      />
+
+      <OrderQuantitySheet
+        visible={qtySheetProduct !== null}
+        product={qtySheetProduct}
+        currentQuantity={qtySheetProduct ? (cart.order[qtySheetProduct.id] ?? 0) : 0}
+        onClose={() => setQtySheetProduct(null)}
+        onApply={(quantity) => {
+          if (!qtySheetProduct) return;
+          cart.setQuantity(qtySheetProduct, quantity);
+          feedback("ok");
+        }}
       />
 
       {confirmed ? <ConfirmedOverlay /> : null}
@@ -318,7 +382,7 @@ function makeStyles(t: Tokens) {
       gap: t.spacing.sm,
     },
     list: { flex: 1, marginTop: t.spacing.xs },
-    listContent: { gap: t.spacing.sm, paddingBottom: t.spacing.xxxl },
+    listContent: { paddingBottom: t.spacing.xxxl, flexGrow: 1 },
     confirmOverlay: {
       position: "absolute",
       top: 0,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Camera, ImagePlus } from "lucide-react-native";
@@ -7,14 +7,25 @@ import { useTheme, type Tokens } from "@/src/theme";
 import { uriToResizedDataUrl } from "@/src/lib/utils/imageUtils";
 import { store } from "@/src/lib/domain/store";
 import { feedback } from "@/src/lib/utils/feedback";
-import { useMemo } from "react";
+import type { Product } from "@/src/types";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
+  editingProduct?: Product | null;
 }
 
-export function ProductForm({ visible, onClose }: Props) {
+function stockToInput(p: Product): string {
+  if (p.unit === "un") return String(Math.round(p.stock));
+  const s = +p.stock.toFixed(3);
+  return String(s).replace(".", ",");
+}
+
+function priceToInput(price: number): string {
+  return price.toFixed(2).replace(".", ",");
+}
+
+export function ProductForm({ visible, onClose, editingProduct = null }: Props) {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const [name, setName] = useState("");
@@ -24,6 +35,8 @@ export function ProductForm({ visible, onClose }: Props) {
   const [photo, setPhoto] = useState<string | undefined>();
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+
+  const isEdit = editingProduct !== null;
 
   const reset = () => {
     setName("");
@@ -39,6 +52,21 @@ export function ProductForm({ visible, onClose }: Props) {
     reset();
     onClose();
   };
+
+  useEffect(() => {
+    if (!visible) return;
+    if (editingProduct) {
+      setName(editingProduct.name);
+      setPrice(priceToInput(editingProduct.price));
+      setUnit(editingProduct.unit === "un" ? "un" : "kg");
+      setStock(stockToInput(editingProduct));
+      setPhoto(editingProduct.photo);
+      setPhotoError(null);
+      setSubmitted(false);
+    } else {
+      reset();
+    }
+  }, [visible, editingProduct]);
 
   async function setPhotoFromUri(uri: string) {
     setPhotoError(null);
@@ -80,18 +108,63 @@ export function ProductForm({ visible, onClose }: Props) {
     const p = parseFloat(price.replace(",", "."));
     const s = parseFloat(stock.replace(",", ".")) || 0;
     if (!name.trim() || !p) return;
-    store.addProduct({ name: name.trim(), price: p, unit, stock: s, photo });
+    if (editingProduct) {
+      store.updateProduct(editingProduct.id, {
+        name: name.trim(),
+        price: p,
+        unit,
+        stock: unit === "un" ? Math.max(0, Math.round(s)) : +Math.max(0, s).toFixed(3),
+        photo,
+      });
+    } else {
+      store.addProduct({
+        name: name.trim(),
+        price: p,
+        unit,
+        stock: unit === "un" ? Math.max(0, Math.round(s)) : +Math.max(0, s).toFixed(3),
+        photo,
+      });
+    }
     feedback("ok");
     handleClose();
+  }
+
+  function confirmDelete() {
+    if (!editingProduct) return;
+    Alert.alert(
+      "Excluir produto",
+      `Remover "${editingProduct.name}" do estoque? Esta ação não pode ser desfeita.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir de vez",
+          style: "destructive",
+          onPress: () => {
+            store.removeProduct(editingProduct.id);
+            feedback("warn");
+            handleClose();
+          },
+        },
+      ],
+    );
   }
 
   const nameError = submitted && !name.trim() ? "Informe um nome" : undefined;
   const priceError = submitted && !parseFloat(price.replace(",", ".")) ? "Informe o preço" : undefined;
 
   return (
-    <BottomSheet visible={visible} onClose={handleClose} title="Novo produto">
+    <BottomSheet
+      visible={visible}
+      onClose={handleClose}
+      title={isEdit ? "Editar produto" : "Novo produto"}
+    >
       <View style={styles.photoRow}>
-        <Pressable style={styles.photoBtn} onPress={showPhotoOptions} accessibilityLabel="Adicionar foto do produto" accessibilityRole="button">
+        <Pressable
+          style={styles.photoBtn}
+          onPress={showPhotoOptions}
+          accessibilityLabel="Adicionar foto do produto"
+          accessibilityRole="button"
+        >
           {photo ? (
             <Image source={{ uri: photo }} style={styles.photoImg} />
           ) : (
@@ -113,8 +186,20 @@ export function ProductForm({ visible, onClose }: Props) {
           <Button label="Remover" variant="ghost" size="sm" onPress={() => setPhoto(undefined)} />
         ) : (
           <View style={styles.photoActions}>
-            <Button label="Galeria" variant="secondary" size="sm" icon={<ImagePlus size={14} color={tokens.palette.primary} />} onPress={() => pickPhoto("library")} />
-            <Button label="Câmera" variant="secondary" size="sm" icon={<Camera size={14} color={tokens.palette.primary} />} onPress={() => pickPhoto("camera")} />
+            <Button
+              label="Galeria"
+              variant="secondary"
+              size="sm"
+              icon={<ImagePlus size={14} color={tokens.palette.primary} />}
+              onPress={() => pickPhoto("library")}
+            />
+            <Button
+              label="Câmera"
+              variant="secondary"
+              size="sm"
+              icon={<Camera size={14} color={tokens.palette.primary} />}
+              onPress={() => pickPhoto("camera")}
+            />
           </View>
         )}
       </View>
@@ -124,7 +209,7 @@ export function ProductForm({ visible, onClose }: Props) {
         placeholder="Ex: Couve-flor"
         value={name}
         onChangeText={setName}
-        autoFocus
+        autoFocus={!isEdit}
         errorText={nameError}
       />
 
@@ -137,10 +222,16 @@ export function ProductForm({ visible, onClose }: Props) {
           onChangeText={setPrice}
           containerStyle={styles.priceField}
           errorText={priceError}
-          leadingIcon={<Text variant="bodyStrong" tone="muted">R$</Text>}
+          leadingIcon={
+            <Text variant="bodyStrong" tone="muted">
+              R$
+            </Text>
+          }
         />
         <View style={styles.unitWrap}>
-          <Text variant="overline" tone="muted">Unidade</Text>
+          <Text variant="overline" tone="muted">
+            Unidade
+          </Text>
           <View style={styles.unitRow}>
             <Chip label="kg" selected={unit === "kg"} onPress={() => setUnit("kg")} />
             <Chip label="un" selected={unit === "un"} onPress={() => setUnit("un")} />
@@ -149,15 +240,36 @@ export function ProductForm({ visible, onClose }: Props) {
       </View>
 
       <Input
-        label="Estoque inicial"
+        label={isEdit ? "Quantidade em estoque" : "Estoque inicial"}
         placeholder="0"
         keyboardType="decimal-pad"
         value={stock}
         onChangeText={setStock}
-        hint="Opcional"
+        hint={isEdit ? "Valor atual na banca" : "Opcional"}
       />
 
-      <Button label="Salvar" variant="success" size="lg" fullWidth onPress={submit} />
+      <Button
+        label={isEdit ? "Salvar alterações" : "Salvar"}
+        variant="success"
+        size="lg"
+        fullWidth
+        onPress={submit}
+      />
+
+      {isEdit ? (
+        <View style={styles.dangerZone}>
+          <Text variant="overline" tone="danger" style={styles.dangerLabel}>
+            Zona de perigo
+          </Text>
+          <Button
+            label="Excluir produto do estoque"
+            variant="danger"
+            size="lg"
+            fullWidth
+            onPress={confirmDelete}
+          />
+        </View>
+      ) : null}
     </BottomSheet>
   );
 }
@@ -188,5 +300,13 @@ function makeStyles(t: Tokens) {
     priceField: { flex: 1 },
     unitWrap: { gap: 4 },
     unitRow: { flexDirection: "row", gap: t.spacing.xs },
+    dangerZone: {
+      marginTop: t.spacing.lg,
+      paddingTop: t.spacing.md,
+      gap: t.spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: t.palette.border,
+    },
+    dangerLabel: { marginBottom: t.spacing.xs },
   });
 }

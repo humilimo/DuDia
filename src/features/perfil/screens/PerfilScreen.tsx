@@ -2,14 +2,17 @@ import { useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Switch, View } from "react-native";
 import {
   Bell,
-  GraduationCap,
+  LayoutGrid,
   LogOut,
   Moon,
+  PackagePlus,
+  ShoppingCart,
   Smartphone,
   Store,
   Sun,
   User,
   Vibrate,
+  Warehouse,
 } from "lucide-react-native";
 import {
   BottomSheet,
@@ -33,7 +36,7 @@ const HELP_CARDS = {
     title: "Como usar o Dudia",
     steps: [
       "Cadastre seus produtos com nome, preço, unidade e estoque inicial.",
-      "Na aba Vendas, escolha Manual para tocar nos produtos ou Voz para segurar o microfone e falar o pedido.",
+      "Na aba Vendas, use a busca e a grade de produtos: modo Manual para tocar e ajustar quantidades, ou modo Voz para segurar o microfone e falar o pedido.",
       "Confira o valor total, escolha a forma de pagamento e finalize a venda.",
       "O total do dia aparece no topo da tela e o estoque é atualizado automaticamente.",
       "Na aba Histórico, toque em um dia e depois em uma venda para ver os itens vendidos.",
@@ -43,9 +46,9 @@ const HELP_CARDS = {
     title: "Como vender",
     steps: [
       "Entre na aba Vendas.",
-      "No modo Manual, toque no botão de adicionar ao lado dos produtos.",
+      "No modo Manual, use a busca se quiser, toque nos produtos na grade e nos + e − ou abra a quantidade para digitar o valor.",
       "No modo Voz, segure o botão de microfone, fale os itens do pedido e solte ao terminar.",
-      "Toque em Vender, vá para o pagamento e escolha Pix, Crédito, Débito ou Dinheiro.",
+      "Toque em Ver pedido, continue até o pagamento e escolha Pix, Crédito, Débito ou Dinheiro.",
       "A confirmação aparece no centro da tela e a venda entra no total do dia.",
     ],
   },
@@ -56,7 +59,7 @@ const HELP_CARDS = {
       "Toque em Cadastrar.",
       "Preencha o nome do produto, preço, unidade e estoque inicial.",
       "Toque em Salvar para adicionar o produto à lista.",
-      "Depois, use os botões de + e − na lista para ajustar o estoque.",
+      "Para alterar nome, preço ou foto, toque no lápis; use + e − para ajuste rápido de estoque.",
     ],
   },
   estoque: {
@@ -65,6 +68,7 @@ const HELP_CARDS = {
       "Cada produto mostra a quantidade disponível na lista.",
       "Use o botão + para adicionar uma unidade ao estoque.",
       "Use o botão − para remover uma unidade do estoque.",
+      "Toque no lápis para editar quantidade, preço, nome ou excluir o produto.",
       "Ao registrar uma venda, o estoque dos itens vendidos diminui automaticamente.",
       "Quando o estoque estiver baixo, o produto aparece destacado com aviso.",
     ],
@@ -82,6 +86,20 @@ export function PerfilScreen() {
   const [helpKey, setHelpKey] = useState<HelpKey | null>(null);
   const help = helpKey ? HELP_CARDS[helpKey] : null;
   const lastTapRef = useRef(0);
+
+  const helpTopicIcon = (key: HelpKey) => {
+    const c = tokens.palette.foreground;
+    switch (key) {
+      case "app":
+        return <LayoutGrid size={16} color={c} />;
+      case "vender":
+        return <ShoppingCart size={16} color={c} />;
+      case "cadastrar":
+        return <PackagePlus size={16} color={c} />;
+      case "estoque":
+        return <Warehouse size={16} color={c} />;
+    }
+  };
 
   function update<K extends keyof typeof settings>(key: K, value: (typeof settings)[K]) {
     settingsStore.update({ [key]: value });
@@ -205,7 +223,7 @@ export function PerfilScreen() {
               key={t.key}
               label={t.label}
               variant="secondary"
-              icon={<GraduationCap size={16} color={tokens.palette.foreground} />}
+              icon={helpTopicIcon(t.key)}
               onPress={() => setHelpKey(t.key)}
               style={styles.helpBtn}
             />

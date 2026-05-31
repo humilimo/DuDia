@@ -66,8 +66,8 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
   useSpeechRecognitionEvent("end", () => {
     setListening(false);
     const text = finalRef.current.trim();
-    if (text) onResultRef.current(text);
     finalRef.current = "";
+    onResultRef.current(text);
     startedAtRef.current = null;
     setRecordingDurationMs(0);
   });

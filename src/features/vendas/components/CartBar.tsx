@@ -22,14 +22,14 @@ export function CartBar({ total, itemCount, onCheckout, rightSlot }: Props) {
         <Button
           variant="success"
           size="lg"
-          accessibilityLabel={`Vender, total ${fmtBRL(total)}, ${itemCount} ${itemCount === 1 ? "item" : "itens"}`}
+          accessibilityLabel={`Ver pedido, total ${fmtBRL(total)}, ${itemCount} ${itemCount === 1 ? "item" : "itens"}`}
           onPress={onCheckout}
           icon={<ShoppingBag size={20} color={tokens.palette.successForeground} />}
           style={styles.sellBtn}
         >
           <View style={styles.btnContent}>
             <Text variant="overline" tone="inverse">
-              Vender · {itemCount} {itemCount === 1 ? "item" : "itens"}
+              Ver pedido · {itemCount} {itemCount === 1 ? "item" : "itens"}
             </Text>
             <Text variant="display" tone="inverse" style={styles.totalText}>
               {fmtBRL(total)}

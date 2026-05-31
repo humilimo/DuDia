@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
-import { Package, Plus } from "lucide-react-native";
+import { Package, Plus, Search } from "lucide-react-native";
 import {
   Button,
   EmptyState,
+  Input,
   ScreenContainer,
   ScreenHeader,
   useToast,
@@ -27,8 +28,10 @@ export function ProdutosScreen() {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const [showForm, setShowForm] = useState(false);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [processing, setProcessing] = useState(false);
   const [awaitingVoiceRegister, setAwaitingVoiceRegister] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const sortedProducts = useMemo(
     () =>
@@ -38,8 +41,19 @@ export function ProdutosScreen() {
     [products],
   );
 
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sortedProducts;
+    return sortedProducts.filter((p) => p.name.toLowerCase().includes(q));
+  }, [sortedProducts, searchQuery]);
+
   const speech = useSpeech({
     onResult: async (transcript) => {
+      if (!transcript.trim()) {
+        setAwaitingVoiceRegister(false);
+        setProcessing(false);
+        return;
+      }
       setProcessing(true);
       try {
         const actions = await interpretCommands(transcript, products, "produtos");
@@ -96,10 +110,14 @@ export function ProdutosScreen() {
   function openCadastrarOptions() {
     Alert.alert("Cadastrar produto", "Escolha como deseja cadastrar:", [
       { text: "Cancelar", style: "cancel" },
-      { text: "Cadastro manual", onPress: () => setShowForm(true) },
+      { text: "Cadastro manual", onPress: () => {
+        setEditProduct(null);
+        setShowForm(true);
+      } },
       {
         text: "Cadastro por áudio",
         onPress: () => {
+          setEditProduct(null);
           setAwaitingVoiceRegister(true);
           void speech.start();
         },
@@ -131,15 +149,39 @@ export function ProdutosScreen() {
             }
           />
         ) : (
-          <ScrollView
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            {sortedProducts.map((p) => (
-              <ProductListItem key={p.id} product={p} lowStockThreshold={settings.lowStockThreshold} />
-            ))}
-          </ScrollView>
+          <View style={styles.listColumn}>
+            <Input
+              placeholder="Buscar produtos…"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              accessibilityLabel="Buscar produtos"
+              leadingIcon={<Search size={18} color={tokens.palette.foregroundMuted} />}
+            />
+            {filteredProducts.length === 0 ? (
+              <EmptyState
+                title="Nenhum produto encontrado"
+                description="Tente outro nome na busca."
+              />
+            ) : (
+              <ScrollView
+                style={styles.list}
+                contentContainerStyle={styles.listContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {filteredProducts.map((p) => (
+                  <ProductListItem
+                    key={p.id}
+                    product={p}
+                    lowStockThreshold={settings.lowStockThreshold}
+                    onEdit={(prod) => {
+                      setShowForm(false);
+                      setEditProduct(prod);
+                    }}
+                  />
+                ))}
+              </ScrollView>
+            )}
+          </View>
         )}
       </View>
 
@@ -159,12 +201,22 @@ export function ProdutosScreen() {
             durationMs={speech.recordingDurationMs}
             onStart={speech.start}
             onStop={speech.stop}
-            onCancel={speech.cancel}
+            onCancel={() => {
+              setAwaitingVoiceRegister(false);
+              void speech.cancel();
+            }}
           />
         ) : null}
       </View>
 
-      <ProductForm visible={showForm} onClose={() => setShowForm(false)} />
+      <ProductForm
+        visible={showForm || editProduct !== null}
+        onClose={() => {
+          setShowForm(false);
+          setEditProduct(null);
+        }}
+        editingProduct={editProduct}
+      />
     </ScreenContainer>
   );
 }
@@ -219,6 +271,7 @@ function confirmVoiceRegister(action: VoiceAction): Promise<boolean> {
 function makeStyles(t: Tokens) {
   return StyleSheet.create({
     body: { flex: 1, paddingHorizontal: t.spacing.lg, paddingTop: t.spacing.md },
+    listColumn: { flex: 1, gap: t.spacing.sm },
     list: { flex: 1 },
     listContent: { gap: t.spacing.sm, paddingBottom: t.spacing.xxxl },
     footer: {

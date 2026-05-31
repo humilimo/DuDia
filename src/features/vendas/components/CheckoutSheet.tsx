@@ -45,7 +45,7 @@ export function CheckoutSheet({ visible, total, onClose, onConfirm }: Props) {
       <View style={styles.head}>
         <Text variant="overline" tone="muted">
           {step === "summary"
-            ? "Total do pedido"
+            ? "Resumo do pedido"
             : step === "payment"
               ? "Forma de pagamento"
               : "Pagamento em dinheiro"}
@@ -58,7 +58,7 @@ export function CheckoutSheet({ visible, total, onClose, onConfirm }: Props) {
       {step === "summary" ? (
         <View style={styles.actions}>
           <Button
-            label="Ir para o pagamento"
+            label="Continuar"
             variant="success"
             size="lg"
             fullWidth
@@ -66,7 +66,7 @@ export function CheckoutSheet({ visible, total, onClose, onConfirm }: Props) {
             onPress={() => setStep("payment")}
           />
           <Button
-            label="Adicionar mais itens"
+            label="Adicionar mais produtos"
             variant="secondary"
             size="lg"
             fullWidth

@@ -6,6 +6,7 @@ import {
   orderItemCount,
   orderTotal,
   pruneOrder,
+  setOrderQuantity,
   type Order,
   type AddOrderResult,
 } from "../logic/order";
@@ -16,7 +17,8 @@ export interface UseOrderReturn {
   itemCount: number;
   hasItems: boolean;
   clear: () => void;
-  remove: (productId: string) => void;
+  remove: (product: Product) => void;
+  setQuantity: (product: Product, quantity: number) => void;
   add: (product: Product, amount?: number) => AddOrderResult;
   applyMany: (
     items: Array<{ product: Product; requested: number }>,
@@ -43,8 +45,12 @@ export function useOrder(products: Product[]): UseOrderReturn {
     [],
   );
 
-  const remove = useCallback((productId: string) => {
-    setOrder((current) => decrementOrder(current, productId));
+  const remove = useCallback((product: Product) => {
+    setOrder((current) => decrementOrder(current, product));
+  }, []);
+
+  const setQuantity = useCallback((product: Product, quantity: number) => {
+    setOrder((current) => setOrderQuantity(current, product, quantity));
   }, []);
 
   const clear = useCallback(() => setOrder({}), []);
@@ -88,6 +94,7 @@ export function useOrder(products: Product[]): UseOrderReturn {
     hasItems: itemCount > 0,
     clear,
     remove,
+    setQuantity,
     add,
     applyMany,
   };
