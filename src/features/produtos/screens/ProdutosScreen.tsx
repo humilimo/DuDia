@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
-import { Mic, Package, Plus, Search } from "lucide-react-native";
+import { Eraser, Package, Plus, Search } from "lucide-react-native";
 import {
   Button,
   EmptyState,
@@ -20,6 +20,7 @@ import { useTheme, type Tokens } from "@/src/theme";
 import type { Product } from "@/src/types";
 import { ProductForm } from "../components/ProductForm";
 import { ProductListItem } from "../components/ProductListItem";
+import { ZeroStockSheet } from "../components/ZeroStockSheet";
 
 export function ProdutosScreen() {
   const { products } = useStore();
@@ -30,8 +31,8 @@ export function ProdutosScreen() {
   const [showForm, setShowForm] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [awaitingVoiceRegister, setAwaitingVoiceRegister] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showZeroStock, setShowZeroStock] = useState(false);
 
   const sortedProducts = useMemo(
     () =>
@@ -50,23 +51,29 @@ export function ProdutosScreen() {
   const speech = useSpeech({
     onResult: async (transcript) => {
       if (!transcript.trim()) {
-        setAwaitingVoiceRegister(false);
         setProcessing(false);
         return;
       }
       setProcessing(true);
       try {
         const actions = await interpretCommands(transcript, products, "produtos");
-        if (awaitingVoiceRegister) {
-          const register = actions.find((action) => action.action === "register_product");
-          if (!register || !register.product_name || !register.product_price) {
-            Alert.alert(
-              "Cadastro por áudio",
-              "Não entendi o cadastro. Tente: cadastrar tomate 6 reais 20 unidades.",
-            );
-            feedback("err");
-            return;
-          }
+        const registerAttempt = actions.find((a) => a.action === "register_product");
+        const register = actions.find(
+          (a) =>
+            a.action === "register_product" &&
+            Boolean(a.product_name) &&
+            a.product_price !== undefined &&
+            a.product_price !== null,
+        );
+        if (registerAttempt && !register) {
+          Alert.alert(
+            "Cadastro por áudio",
+            "Não entendi o cadastro. Tente: cadastrar tomate 6 reais 20 unidades.",
+          );
+          feedback("err");
+          return;
+        }
+        if (register) {
           const confirmed = await confirmVoiceRegister(register);
           if (!confirmed) {
             feedback("warn");
@@ -87,7 +94,7 @@ export function ProdutosScreen() {
         }
         let okCount = 0;
         for (const action of actions) {
-          if (action.action === "unknown") continue;
+          if (action.action === "unknown" || action.action === "register_product") continue;
           const result = applyProductsVoice(action);
           if (result.ok) okCount += 1;
         }
@@ -96,7 +103,6 @@ export function ProdutosScreen() {
       } catch {
         feedback("err");
       } finally {
-        setAwaitingVoiceRegister(false);
         setProcessing(false);
       }
     },
@@ -112,11 +118,7 @@ export function ProdutosScreen() {
     setShowForm(true);
   }
 
-  function startVoiceRegister() {
-    setEditProduct(null);
-    setAwaitingVoiceRegister(true);
-    void speech.start();
-  }
+  const hasProducts = sortedProducts.length > 0;
 
   return (
     <ScreenContainer>
@@ -126,11 +128,11 @@ export function ProdutosScreen() {
       />
 
       <View style={styles.body}>
-        {sortedProducts.length === 0 ? (
+        {!hasProducts ? (
           <EmptyState
             icon={<Package size={32} color={tokens.palette.primary} />}
             title="Nenhum produto cadastrado"
-            description="Use os botões abaixo: cadastro manual (verde) ou ícone de microfone (azul) para cadastro por áudio."
+            description="Use o botão verde para cadastrar, o microfone para falar com o app ou Limpar estoque quando houver produtos."
           />
         ) : (
           <View style={styles.listColumn}>
@@ -172,37 +174,38 @@ export function ProdutosScreen() {
       <View style={styles.footer}>
         <View style={styles.footerRow}>
           <Button
+            label="Limpar estoque"
+            variant="ghost"
+            size="md"
+            disabled={!hasProducts}
+            icon={<Eraser size={18} color={tokens.palette.foregroundMuted} />}
+            accessibilityLabel="Limpar todo o estoque"
+            onPress={() => setShowZeroStock(true)}
+            style={styles.footerGhost}
+          />
+          <Button
             label="Cadastrar"
             variant="success"
             size="lg"
             icon={<Plus size={20} color={tokens.palette.successForeground} />}
             onPress={openManualForm}
-            style={styles.footerBtn}
+            style={styles.footerMain}
           />
-          <Button
-            variant="primary"
-            size="lg"
-            icon={<Mic size={24} color={tokens.palette.primaryForeground} />}
-            accessibilityLabel="Cadastro por áudio"
-            onPress={startVoiceRegister}
-            style={styles.footerBtnMic}
-          />
-        </View>
-        {speech.supported ? (
-          <View style={styles.footerRowMic}>
+          {speech.supported ? (
             <MicButton
               listening={speech.listening}
               processing={processing}
               durationMs={speech.recordingDurationMs}
-              onStart={speech.start}
+              onStart={() => {
+                void speech.start();
+              }}
               onStop={speech.stop}
               onCancel={() => {
-                setAwaitingVoiceRegister(false);
                 void speech.cancel();
               }}
             />
-          </View>
-        ) : null}
+          ) : null}
+        </View>
       </View>
 
       <ProductForm
@@ -214,6 +217,11 @@ export function ProdutosScreen() {
         editingProduct={editProduct}
       />
 
+      <ZeroStockSheet
+        visible={showZeroStock}
+        onClose={() => setShowZeroStock(false)}
+        onDone={() => toast.show("Todo o estoque foi zerado", "warning")}
+      />
     </ScreenContainer>
   );
 }
@@ -272,17 +280,16 @@ function makeStyles(t: Tokens) {
     list: { flex: 1 },
     listContent: { gap: t.spacing.sm, paddingBottom: t.spacing.xxxl },
     footer: {
-      gap: t.spacing.sm,
       paddingHorizontal: t.spacing.lg,
       paddingVertical: t.spacing.md,
     },
     footerRow: {
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "space-between",
       gap: t.spacing.sm,
     },
-    footerBtn: { flex: 1 },
-    footerBtnMic: { flex: 1, minWidth: 56, paddingHorizontal: t.spacing.lg },
-    footerRowMic: { alignItems: "center" },
+    footerGhost: { flexShrink: 0 },
+    footerMain: { flex: 1, minHeight: 76, paddingVertical: t.spacing.md },
   });
 }

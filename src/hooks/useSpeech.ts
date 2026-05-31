@@ -87,7 +87,10 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
   });
 
   useSpeechRecognitionEvent("error", (event) => {
-    if (event.error === "aborted") return;
+    if (event.error === "aborted") {
+      suppressClientErrorRef.current = false;
+      return;
+    }
     pendingStartRef.current = false;
     setListening(false);
     startedAtRef.current = null;
