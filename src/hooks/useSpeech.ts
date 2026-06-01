@@ -8,6 +8,8 @@ import {
 const MIN_RECORD_MS = 350;
 const START_TIMEOUT_MS = 2000;
 const STALE_LISTENING_MS = 3000;
+/** Avoid false "silêncio" quando o nativo emite `end` cedo sem transcrição consolidada. */
+const MIN_MS_BEFORE_EMPTY_NOTIFY = 800;
 
 const STT_UNAVAILABLE_MSG =
   "Reconhecimento de voz indisponível. Instale o app Google ou ative o reconhecimento de voz nas configurações do Android.";
@@ -55,6 +57,7 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
   const pendingCancelRef = useRef(false);
   const listeningSinceRef = useRef<number | null>(null);
   const finalsPartsRef = useRef<string[]>([]);
+  const skipEmptyOnNextEndRef = useRef(false);
 
   const pickLongestTranscript = useCallback((candidates: string[]) => {
     let best = "";
@@ -98,6 +101,7 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
     setRecordingDurationMs(0);
     finalsPartsRef.current = [];
     finalRef.current = "";
+    skipEmptyOnNextEndRef.current = false;
   }, [enabled]);
 
   useEffect(() => {
@@ -234,6 +238,7 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
 
   useSpeechRecognitionEvent("start", () => {
     if (!enabledRef.current) return;
+    skipEmptyOnNextEndRef.current = false;
     startingRef.current = false;
     setIsStarting(false);
     startedAtRef.current = Date.now();
@@ -248,15 +253,21 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
   useSpeechRecognitionEvent("end", () => {
     if (!enabledRef.current) {
       finalRef.current = "";
+      skipEmptyOnNextEndRef.current = false;
       return;
     }
+    const startedAt = startedAtRef.current;
+    const elapsedMs = startedAt ? Date.now() - startedAt : 0;
+    const skipEmptyNotify = skipEmptyOnNextEndRef.current;
+    skipEmptyOnNextEndRef.current = false;
+
     setListening(false);
     finishSession();
     const text = finalRef.current.trim();
     finalRef.current = "";
     if (text) {
       onResultRef.current(text);
-    } else {
+    } else if (!skipEmptyNotify && elapsedMs >= MIN_MS_BEFORE_EMPTY_NOTIFY) {
       onEmptyRef.current?.();
     }
   });
@@ -335,6 +346,7 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
     pendingCancelRef.current = false;
     finalRef.current = "";
     finalsPartsRef.current = [];
+    skipEmptyOnNextEndRef.current = false;
 
     if (!hasPermissionRef.current) {
       const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
@@ -396,6 +408,7 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
   }, [listening, tryStopOrCancel]);
 
   const cancel = useCallback(() => {
+    skipEmptyOnNextEndRef.current = true;
     sessionRef.current += 1;
     pendingCancelRef.current = true;
     pendingStopRef.current = false;

@@ -79,7 +79,7 @@ Detalhes por camada em `app/AGENTS.md`, `src/AGENTS.md`, `src/features/AGENTS.md
 ## Gotchas
 
 - **Pasta `android/`** é gerada por `expo prebuild`. Mudanças nativas vão em [app.json](app.json) e ressincronizam com `npx expo prebuild --platform android --clean`.
-- **expo-speech-recognition**: `onResult` roda no evento `end` quando há texto; se estiver vazio, chama-se `onEmpty`. Não dispare lógica pesada dentro de `result` (interim). Em telas com abas, passe `enabled: useIsFocused()` para só a aba ativa processar eventos (o módulo nativo é único). Cleanup no desmonte: dependência de `stop`, não do objeto retornado por `useSpeech`. Ao trocar de aba, `useFocusEffect` pode chamar `cancel()` para encerrar gravação.
+- **expo-speech-recognition**: `onResult` roda no evento `end` quando há texto; `onEmpty` só depois de ~800ms de sessão ativa e sem cancel explícito (evita toast falso quando o nativo encerra cedo). Não dispare lógica pesada dentro de `result` (interim). Em telas com abas, passe `enabled: useIsFocused()` para só a aba ativa processar eventos (o módulo nativo é único). Cleanup no desmonte: dependência de `stop`, não do objeto retornado por `useSpeech`. Ao trocar de aba, `useFocusEffect` pode chamar `cancel()` para encerrar gravação.
 - **`store.addSale`** ajusta estoque internamente — não chame `adjustStock` adicionalmente após `addSale`.
 - **Quantidades**: produtos `un` são inteiros, `kg` aceitam decimais. Sempre arredondar com `toFixed(3)` em operações de estoque.
 - **Imagens base64**: redimensionar via `uriToResizedDataUrl(uri, 320)` antes de persistir, para não estourar AsyncStorage.
