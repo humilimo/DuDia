@@ -7,7 +7,6 @@ import {
 
 const MIN_RECORD_MS = 350;
 const START_TIMEOUT_MS = 2000;
-const STALE_LISTENING_MS = 3000;
 /** Avoid false "silêncio" quando o nativo emite `end` cedo sem transcrição consolidada. */
 const MIN_MS_BEFORE_EMPTY_NOTIFY = 800;
 
@@ -55,7 +54,6 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
   const canStopAtRef = useRef(0);
   const pendingStopRef = useRef(false);
   const pendingCancelRef = useRef(false);
-  const listeningSinceRef = useRef<number | null>(null);
   const finalsPartsRef = useRef<string[]>([]);
   const skipEmptyOnNextEndRef = useRef(false);
 
@@ -127,42 +125,17 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
 
   useEffect(() => {
     if (!listening) {
-      listeningSinceRef.current = null;
       setRecordingDurationMs(0);
       return;
     }
-    if (!listeningSinceRef.current) listeningSinceRef.current = Date.now();
 
     const durationId = setInterval(() => {
       if (!startedAtRef.current) return;
       setRecordingDurationMs(Date.now() - startedAtRef.current);
     }, 100);
 
-    const staleId = setInterval(() => {
-      const since = listeningSinceRef.current;
-      if (!since) return;
-      const elapsed = Date.now() - since;
-      if (!startedAtRef.current && elapsed > STALE_LISTENING_MS) {
-        if (!enabledRef.current) return;
-        try {
-          ExpoSpeechRecognitionModule.abort();
-        } catch {
-          // ignore
-        }
-        setListening(false);
-        startingRef.current = false;
-        setIsStarting(false);
-        pendingStopRef.current = false;
-        pendingCancelRef.current = false;
-        startedAtRef.current = null;
-        canStopAtRef.current = 0;
-        listeningSinceRef.current = null;
-      }
-    }, 1000);
-
     return () => {
       clearInterval(durationId);
-      clearInterval(staleId);
     };
   }, [listening]);
 
@@ -173,7 +146,6 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
     pendingCancelRef.current = false;
     startedAtRef.current = null;
     canStopAtRef.current = 0;
-    listeningSinceRef.current = null;
     finalsPartsRef.current = [];
     setRecordingDurationMs(0);
   }, []);
@@ -242,7 +214,6 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
     startingRef.current = false;
     setIsStarting(false);
     startedAtRef.current = Date.now();
-    listeningSinceRef.current = Date.now();
     canStopAtRef.current = Date.now() + MIN_RECORD_MS;
     setListening(true);
     if (pendingStopRef.current || pendingCancelRef.current) {
@@ -367,7 +338,8 @@ export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "
       ExpoSpeechRecognitionModule.start({
         lang,
         interimResults: true,
-        continuous: false,
+        /** Sem limite artificial de “uma frase”; o utilizador encerra com soltar o microfone. */
+        continuous: true,
       });
     } catch {
       if (sessionRef.current === session) {
