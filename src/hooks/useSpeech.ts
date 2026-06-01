@@ -16,6 +16,8 @@ interface Options {
   onResult: (transcript: string) => void;
   onError?: (msg: string) => void;
   onEmpty?: () => void;
+  /** When false, native events are ignored so only the focused tab handles voice (tabs stay mounted). */
+  enabled?: boolean;
   lang?: string;
 }
 
@@ -34,12 +36,13 @@ function getAndroidSpeechServices(): string[] {
   }
 }
 
-export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Options) {
+export function useSpeech({ onResult, onError, onEmpty, enabled = true, lang = "pt-BR" }: Options) {
   const [supported, setSupported] = useState(true);
   const [listening, setListening] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [recordingDurationMs, setRecordingDurationMs] = useState(0);
   const finalRef = useRef("");
+  const enabledRef = useRef(enabled);
   const onResultRef = useRef(onResult);
   const onErrorRef = useRef(onError);
   const onEmptyRef = useRef(onEmpty);
@@ -85,6 +88,19 @@ export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Option
   }, [onResult, onError, onEmpty]);
 
   useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
+
+  useEffect(() => {
+    if (enabled) return;
+    setListening(false);
+    setIsStarting(false);
+    setRecordingDurationMs(0);
+    finalsPartsRef.current = [];
+    finalRef.current = "";
+  }, [enabled]);
+
+  useEffect(() => {
     try {
       setSupported(ExpoSpeechRecognitionModule.isRecognitionAvailable());
     } catch {
@@ -123,6 +139,7 @@ export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Option
       if (!since) return;
       const elapsed = Date.now() - since;
       if (!startedAtRef.current && elapsed > STALE_LISTENING_MS) {
+        if (!enabledRef.current) return;
         try {
           ExpoSpeechRecognitionModule.abort();
         } catch {
@@ -216,6 +233,7 @@ export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Option
   }, [finishSession]);
 
   useSpeechRecognitionEvent("start", () => {
+    if (!enabledRef.current) return;
     startingRef.current = false;
     setIsStarting(false);
     startedAtRef.current = Date.now();
@@ -228,6 +246,10 @@ export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Option
   });
 
   useSpeechRecognitionEvent("end", () => {
+    if (!enabledRef.current) {
+      finalRef.current = "";
+      return;
+    }
     setListening(false);
     finishSession();
     const text = finalRef.current.trim();
@@ -240,6 +262,7 @@ export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Option
   });
 
   useSpeechRecognitionEvent("result", (event) => {
+    if (!enabledRef.current) return;
     const results = event.results;
     if (!results?.length) return;
 
@@ -258,6 +281,10 @@ export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Option
 
   useSpeechRecognitionEvent("error", (event) => {
     if (event.error === "aborted") return;
+    if (!enabledRef.current) {
+      finalRef.current = "";
+      return;
+    }
     setListening(false);
     finishSession();
     finalRef.current = "";
@@ -265,6 +292,7 @@ export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Option
   });
 
   const start = useCallback(async () => {
+    if (!enabledRef.current) return;
     if (listening && startedAtRef.current) return;
 
     if (listening && !startedAtRef.current) {
@@ -340,6 +368,11 @@ export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Option
 
     setTimeout(() => {
       if (sessionRef.current !== session) return;
+      if (!enabledRef.current) {
+        startingRef.current = false;
+        setIsStarting(false);
+        return;
+      }
       if (startingRef.current) {
         startingRef.current = false;
         setIsStarting(false);

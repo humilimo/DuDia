@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, FlatList, StyleSheet, useWindowDimensions, View } from "react-native";
+import { useFocusEffect, useIsFocused } from "expo-router";
 import { Check, Search } from "lucide-react-native";
 import {
   EmptyState,
@@ -34,6 +35,7 @@ const fmtDate = (d: Date) => {
 };
 
 export function VendasScreen() {
+  const isFocused = useIsFocused();
   const { products, sales } = useStore();
   const settings = useSettings();
   const toast = useToast();
@@ -70,6 +72,7 @@ export function VendasScreen() {
     stop: speechStop,
     cancel: speechCancel,
   } = useSpeech({
+    enabled: isFocused,
     onResult: async (transcript) => {
       if (!transcript.trim()) {
         setProcessing(false);
@@ -147,6 +150,14 @@ export function VendasScreen() {
   useEffect(() => () => {
     void speechStop();
   }, [speechStop]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        void speechCancel();
+      };
+    }, [speechCancel]),
+  );
 
   const listExtraData = useMemo(
     () => ({
@@ -261,8 +272,9 @@ export function VendasScreen() {
               <FlatList
                 data={filteredProducts}
                 extraData={listExtraData}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => `${item.id}-${item.stock}`}
                 numColumns={3}
+                removeClippedSubviews={false}
                 style={styles.list}
                 columnWrapperStyle={{ gap: gridMetrics.gap, marginBottom: gridMetrics.gap }}
                 contentContainerStyle={styles.listContent}

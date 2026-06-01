@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { useFocusEffect, useIsFocused } from "expo-router";
 import { Eraser, Package, Plus, Search } from "lucide-react-native";
 import {
   Button,
@@ -27,6 +28,7 @@ import { ProductListItem } from "../components/ProductListItem";
 import { ZeroStockSheet } from "../components/ZeroStockSheet";
 
 export function ProdutosScreen() {
+  const isFocused = useIsFocused();
   const { products } = useStore();
   const settings = useSettings();
   const toast = useToast();
@@ -61,6 +63,7 @@ export function ProdutosScreen() {
     stop: speechStop,
     cancel: speechCancel,
   } = useSpeech({
+    enabled: isFocused,
     onResult: async (transcript) => {
       if (!transcript.trim()) {
         setProcessing(false);
@@ -144,6 +147,14 @@ export function ProdutosScreen() {
       void speechStop();
     },
     [speechStop],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        void speechCancel();
+      };
+    }, [speechCancel]),
   );
 
   function openManualForm() {

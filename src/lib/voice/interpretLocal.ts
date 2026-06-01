@@ -87,7 +87,7 @@ export function interpretCommandLocal(transcript: string, products: Product[]): 
 
   // --- Estoque: adicionar ---
   const stockAddMatch = t.match(
-    /^(?:adicionar|adiciona|coloca|entrada)\s+(.+)$/,
+    /^(?:adicionar|adiciona|adicione|adicionem|coloque|coloca|entrada)\s+(.+)$/,
   );
   if (stockAddMatch) {
     const rest = stockAddMatch[1];
@@ -297,6 +297,18 @@ function applyScreenContext(act: VoiceAction, screen: VoiceScreen): VoiceAction 
   }
 }
 
+function dedupeIdenticalActions(actions: VoiceAction[]): VoiceAction[] {
+  const seen = new Set<string>();
+  const out: VoiceAction[] = [];
+  for (const a of actions) {
+    const key = JSON.stringify(a);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(a);
+  }
+  return out;
+}
+
 export function interpretCommands(
   transcript: string,
   products: Product[],
@@ -313,8 +325,8 @@ export function interpretCommands(
     if (isActionKnown(act)) actions.push(act);
   }
 
-  if (actions.length > 0) return actions;
+  if (actions.length > 0) return dedupeIdenticalActions(actions);
 
   const full = applyScreenContext(interpretCommandLocal(raw, products), screen);
-  return isActionKnown(full) ? [full] : [full];
+  return dedupeIdenticalActions(isActionKnown(full) ? [full] : [full]);
 }
