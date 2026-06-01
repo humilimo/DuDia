@@ -80,15 +80,42 @@ export function decrementOrder(order: Order, product: Product): Order {
   return { ...order, [product.id]: nextQty };
 }
 
-export function pruneOrder(order: Order, products: Product[]): Order {
-  const productIds = new Set(products.map((p) => p.id));
-  const next: Order = {};
-  let changed = false;
-  for (const [id, qty] of Object.entries(order)) {
-    if (productIds.has(id) && qty > 0) next[id] = qty;
-    else changed = true;
+function ordersEquivalent(a: Order, b: Order): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    const va = a[k] ?? 0;
+    const vb = b[k] ?? 0;
+    if (va <= 0 && vb <= 0) continue;
+    if (va <= 0 || vb <= 0) return false;
+    if (Math.abs(va - vb) > 1e-5) return false;
   }
-  return changed ? next : order;
+  return true;
+}
+
+export function pruneOrder(order: Order, products: Product[]): Order {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const next: Order = {};
+
+  for (const [id, rawQty] of Object.entries(order)) {
+    const qty = typeof rawQty === "number" && Number.isFinite(rawQty) ? rawQty : 0;
+    if (qty <= 0) continue;
+
+    const product = byId.get(id);
+    if (!product || product.stock <= 0) continue;
+
+    let capped: number;
+    if (product.unit === "un") {
+      capped = Math.min(Math.max(1, Math.round(qty)), Math.floor(product.stock));
+      if (capped < 1) continue;
+    } else {
+      capped = +Math.min(Math.max(0.001, +qty.toFixed(3)), product.stock).toFixed(3);
+      if (capped < 0.001) continue;
+    }
+
+    next[id] = roundOrderQty(product, capped);
+  }
+
+  return ordersEquivalent(order, next) ? order : next;
 }
 
 export function orderTotal(order: Order, products: Product[]): number {

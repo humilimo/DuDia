@@ -52,7 +52,15 @@ export function ProdutosScreen() {
     return sortedProducts.filter((p) => p.name.toLowerCase().includes(q));
   }, [sortedProducts, searchQuery]);
 
-  const speech = useSpeech({
+  const {
+    supported: speechSupported,
+    listening: speechListening,
+    isStarting: speechStarting,
+    recordingDurationMs: speechDurationMs,
+    start: speechStart,
+    stop: speechStop,
+    cancel: speechCancel,
+  } = useSpeech({
     onResult: async (transcript) => {
       if (!transcript.trim()) {
         setProcessing(false);
@@ -122,13 +130,20 @@ export function ProdutosScreen() {
       }
     },
     onError: (msg) => toast.show(msg, "danger"),
+    onEmpty: () => {
+      setProcessing(false);
+      toast.show(
+        "Não ouvi nada. Segure o microfone enquanto fala e solte ao terminar.",
+        "warning",
+      );
+    },
   });
 
   useEffect(
     () => () => {
-      void speech.stop();
+      void speechStop();
     },
-    [speech],
+    [speechStop],
   );
 
   function openManualForm() {
@@ -210,17 +225,17 @@ export function ProdutosScreen() {
             onPress={openManualForm}
             style={styles.footerMain}
           />
-          {speech.supported ? (
+          {speechSupported ? (
             <MicButton
-              listening={speech.listening}
-              processing={processing}
-              durationMs={speech.recordingDurationMs}
+              listening={speechListening}
+              processing={processing || speechStarting}
+              durationMs={speechDurationMs}
               onStart={() => {
-                void speech.start();
+                void speechStart();
               }}
-              onStop={speech.stop}
+              onStop={speechStop}
               onCancel={() => {
-                void speech.cancel();
+                void speechCancel();
               }}
             />
           ) : null}

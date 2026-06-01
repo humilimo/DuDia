@@ -1,73 +1,94 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
 
+const MIN_RECORD_MS = 350;
+const START_TIMEOUT_MS = 2000;
+const STALE_LISTENING_MS = 3000;
+
+const STT_UNAVAILABLE_MSG =
+  "Reconhecimento de voz indisponível. Instale o app Google ou ative o reconhecimento de voz nas configurações do Android.";
+
 interface Options {
   onResult: (transcript: string) => void;
   onError?: (msg: string) => void;
+  onEmpty?: () => void;
   lang?: string;
 }
 
-type StartMode = "ondevice" | "network";
-
-const HYBRID_FALLBACK_ERRORS = new Set([
-  "network",
-  "service-not-allowed",
-  "language-not-supported",
-  "language-unavailable",
-]);
-
-function toUserErrorMessage(error: string) {
-  switch (error) {
-    case "network":
-      return "Não foi possível reconhecer agora. Tentamos modo offline e internet, mas o serviço de voz falhou.";
-    case "service-not-allowed":
-      return "O serviço de reconhecimento de voz não está disponível neste aparelho.";
-    case "language-not-supported":
-    case "language-unavailable":
-      return "O idioma pt-BR não está disponível no reconhecimento de voz deste aparelho.";
-    case "no-speech":
-    case "speech-timeout":
-      return "Não detectei fala. Tente novamente falando um pouco mais perto do microfone.";
-    default:
-      return "Não foi possível usar o microfone agora. Tente novamente.";
+function getAndroidSpeechServices(): string[] {
+  if (Platform.OS !== "android") return [];
+  const getServices = (
+    ExpoSpeechRecognitionModule as {
+      getSpeechRecognitionServices?: () => string[];
+    }
+  ).getSpeechRecognitionServices;
+  if (typeof getServices !== "function") return [];
+  try {
+    return getServices.call(ExpoSpeechRecognitionModule) ?? [];
+  } catch {
+    return [];
   }
 }
 
-export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
+export function useSpeech({ onResult, onError, onEmpty, lang = "pt-BR" }: Options) {
   const [supported, setSupported] = useState(true);
   const [listening, setListening] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [recordingDurationMs, setRecordingDurationMs] = useState(0);
   const finalRef = useRef("");
   const onResultRef = useRef(onResult);
   const onErrorRef = useRef(onError);
+  const onEmptyRef = useRef(onEmpty);
   const hasPermissionRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
-  const listeningRef = useRef(false);
-  const pendingStartRef = useRef(false);
-  const suppressClientErrorRef = useRef(false);
-  const supportsOnDeviceRef = useRef(false);
-  const startModeRef = useRef<StartMode>("network");
-  const fallbackAttemptedRef = useRef(false);
+  const sessionRef = useRef(0);
+  const startingRef = useRef(false);
+  const canStopAtRef = useRef(0);
+  const pendingStopRef = useRef(false);
+  const pendingCancelRef = useRef(false);
+  const listeningSinceRef = useRef<number | null>(null);
+  const finalsPartsRef = useRef<string[]>([]);
+
+  const pickLongestTranscript = useCallback((candidates: string[]) => {
+    let best = "";
+    for (const c of candidates) {
+      const t = c.trim();
+      if (t.length > best.length) best = t;
+    }
+    return best;
+  }, []);
+
+  const mergeFinalPart = useCallback((incoming: string) => {
+    const t = incoming.trim();
+    if (!t) return;
+    const parts = finalsPartsRef.current;
+    const last = parts[parts.length - 1];
+    if (!last) {
+      parts.push(t);
+      return;
+    }
+    if (t.includes(last) || last.includes(t)) {
+      parts[parts.length - 1] = t.length >= last.length ? t : last;
+    } else {
+      parts.push(t);
+    }
+  }, []);
 
   useEffect(() => {
     onResultRef.current = onResult;
     onErrorRef.current = onError;
-  }, [onResult, onError]);
-
-  useEffect(() => {
-    listeningRef.current = listening;
-  }, [listening]);
+    onEmptyRef.current = onEmpty;
+  }, [onResult, onError, onEmpty]);
 
   useEffect(() => {
     try {
       setSupported(ExpoSpeechRecognitionModule.isRecognitionAvailable());
-      supportsOnDeviceRef.current = ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
     } catch {
       setSupported(false);
-      supportsOnDeviceRef.current = false;
     }
   }, []);
 
@@ -86,152 +107,280 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
 
   useEffect(() => {
     if (!listening) {
+      listeningSinceRef.current = null;
       setRecordingDurationMs(0);
       return;
     }
-    const id = setInterval(() => {
+    if (!listeningSinceRef.current) listeningSinceRef.current = Date.now();
+
+    const durationId = setInterval(() => {
       if (!startedAtRef.current) return;
       setRecordingDurationMs(Date.now() - startedAtRef.current);
     }, 100);
-    return () => clearInterval(id);
+
+    const staleId = setInterval(() => {
+      const since = listeningSinceRef.current;
+      if (!since) return;
+      const elapsed = Date.now() - since;
+      if (!startedAtRef.current && elapsed > STALE_LISTENING_MS) {
+        try {
+          ExpoSpeechRecognitionModule.abort();
+        } catch {
+          // ignore
+        }
+        setListening(false);
+        startingRef.current = false;
+        setIsStarting(false);
+        pendingStopRef.current = false;
+        pendingCancelRef.current = false;
+        startedAtRef.current = null;
+        canStopAtRef.current = 0;
+        listeningSinceRef.current = null;
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(durationId);
+      clearInterval(staleId);
+    };
   }, [listening]);
 
-  useSpeechRecognitionEvent("start", () => {
-    pendingStartRef.current = false;
-    startedAtRef.current = Date.now();
-    setListening(true);
-  });
-
-  useSpeechRecognitionEvent("end", () => {
-    pendingStartRef.current = false;
-    fallbackAttemptedRef.current = false;
-    setListening(false);
-    const text = finalRef.current.trim();
-    finalRef.current = "";
-    onResultRef.current(text);
+  const finishSession = useCallback(() => {
+    startingRef.current = false;
+    setIsStarting(false);
+    pendingStopRef.current = false;
+    pendingCancelRef.current = false;
     startedAtRef.current = null;
+    canStopAtRef.current = 0;
+    listeningSinceRef.current = null;
+    finalsPartsRef.current = [];
     setRecordingDurationMs(0);
-  });
+  }, []);
 
-  useSpeechRecognitionEvent("result", (event) => {
-    const text = event.results[0]?.transcript ?? "";
-    if (text) finalRef.current = text;
-  });
-
-  useSpeechRecognitionEvent("error", (event) => {
-    if (event.error === "aborted") {
-      suppressClientErrorRef.current = false;
+  const tryStopOrCancel = useCallback(() => {
+    const now = Date.now();
+    if (now < canStopAtRef.current) {
+      const delay = canStopAtRef.current - now;
+      setTimeout(() => {
+        if (pendingCancelRef.current) {
+          pendingCancelRef.current = false;
+          try {
+            ExpoSpeechRecognitionModule.abort();
+          } catch {
+            try {
+              ExpoSpeechRecognitionModule.stop();
+            } catch {
+              // ignore
+            }
+          }
+          finalRef.current = "";
+          setListening(false);
+          finishSession();
+        } else if (pendingStopRef.current) {
+          pendingStopRef.current = false;
+          try {
+            ExpoSpeechRecognitionModule.stop();
+          } catch {
+            // ignore
+          }
+        }
+      }, delay);
       return;
     }
-    pendingStartRef.current = false;
-    setListening(false);
-    startedAtRef.current = null;
-    setRecordingDurationMs(0);
-    if (event.error === "client" && suppressClientErrorRef.current) {
-      suppressClientErrorRef.current = false;
-      return;
-    }
-    const canFallback =
-      startModeRef.current === "ondevice" &&
-      !fallbackAttemptedRef.current &&
-      HYBRID_FALLBACK_ERRORS.has(event.error);
-    if (canFallback) {
-      fallbackAttemptedRef.current = true;
-      startModeRef.current = "network";
-      try {
-        pendingStartRef.current = true;
-        ExpoSpeechRecognitionModule.start({
-          lang,
-          interimResults: true,
-          continuous: false,
-          requiresOnDeviceRecognition: false,
-        });
-        return;
-      } catch {
-        pendingStartRef.current = false;
-      }
-    }
-    onErrorRef.current?.(toUserErrorMessage(event.error));
-  });
 
-  const startWithMode = useCallback(
-    (mode: StartMode) => {
-      startModeRef.current = mode;
-      pendingStartRef.current = true;
-      ExpoSpeechRecognitionModule.start({
-        lang,
-        interimResults: true,
-        continuous: false,
-        requiresOnDeviceRecognition: mode === "ondevice",
-      });
-    },
-    [lang],
-  );
-
-  const start = useCallback(async () => {
-    if (listeningRef.current || pendingStartRef.current) return;
-    if (!hasPermissionRef.current) {
-      const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      hasPermissionRef.current = !!perm.granted;
-      if (!perm.granted) {
-        onErrorRef.current?.("Permissão de microfone negada.");
-        return;
-      }
-    }
-    try {
-      finalRef.current = "";
-      fallbackAttemptedRef.current = false;
-      if (supportsOnDeviceRef.current) {
-        startWithMode("ondevice");
-      } else {
-        startWithMode("network");
-      }
-    } catch {
-      pendingStartRef.current = false;
-      onErrorRef.current?.("Não foi possível iniciar o microfone.");
-    }
-  }, [startWithMode]);
-
-  const stop = useCallback(() => {
-    if (pendingStartRef.current) {
-      suppressClientErrorRef.current = true;
-      pendingStartRef.current = false;
+    if (pendingCancelRef.current) {
+      pendingCancelRef.current = false;
       try {
         ExpoSpeechRecognitionModule.abort();
       } catch {
-        // ignore
+        try {
+          ExpoSpeechRecognitionModule.stop();
+        } catch {
+          // ignore
+        }
       }
+      finalRef.current = "";
       setListening(false);
-      startedAtRef.current = null;
-      setRecordingDurationMs(0);
+      finishSession();
       return;
     }
-    if (!listeningRef.current) return;
-    try {
-      ExpoSpeechRecognitionModule.stop();
-    } catch {
-      // ignore
-    }
-  }, []);
 
-  const cancel = useCallback(() => {
-    pendingStartRef.current = false;
-    suppressClientErrorRef.current = false;
-    fallbackAttemptedRef.current = false;
-    try {
-      ExpoSpeechRecognitionModule.abort();
-    } catch {
+    if (pendingStopRef.current) {
+      pendingStopRef.current = false;
       try {
         ExpoSpeechRecognitionModule.stop();
       } catch {
         // ignore
       }
     }
-    finalRef.current = "";
-    setListening(false);
-    startedAtRef.current = null;
-    setRecordingDurationMs(0);
-  }, []);
+  }, [finishSession]);
 
-  return { supported, listening, recordingDurationMs, start, stop, cancel };
+  useSpeechRecognitionEvent("start", () => {
+    startingRef.current = false;
+    setIsStarting(false);
+    startedAtRef.current = Date.now();
+    listeningSinceRef.current = Date.now();
+    canStopAtRef.current = Date.now() + MIN_RECORD_MS;
+    setListening(true);
+    if (pendingStopRef.current || pendingCancelRef.current) {
+      tryStopOrCancel();
+    }
+  });
+
+  useSpeechRecognitionEvent("end", () => {
+    setListening(false);
+    finishSession();
+    const text = finalRef.current.trim();
+    finalRef.current = "";
+    if (text) {
+      onResultRef.current(text);
+    } else {
+      onEmptyRef.current?.();
+    }
+  });
+
+  useSpeechRecognitionEvent("result", (event) => {
+    const results = event.results;
+    if (!results?.length) return;
+
+    const fromResults = results
+      .map((r) => r.transcript?.trim() ?? "")
+      .filter(Boolean);
+
+    if (event.isFinal) {
+      for (const t of fromResults) mergeFinalPart(t);
+    }
+
+    const joinedFinals = finalsPartsRef.current.join(" ").trim();
+    const best = pickLongestTranscript([finalRef.current, joinedFinals, ...fromResults]);
+    if (best) finalRef.current = best;
+  });
+
+  useSpeechRecognitionEvent("error", (event) => {
+    if (event.error === "aborted") return;
+    setListening(false);
+    finishSession();
+    finalRef.current = "";
+    onErrorRef.current?.(event.message || event.error);
+  });
+
+  const start = useCallback(async () => {
+    if (listening && startedAtRef.current) return;
+
+    if (listening && !startedAtRef.current) {
+      try {
+        ExpoSpeechRecognitionModule.abort();
+      } catch {
+        // ignore
+      }
+      setListening(false);
+      finishSession();
+    }
+
+    if (startingRef.current) return;
+
+    let available = false;
+    try {
+      available = ExpoSpeechRecognitionModule.isRecognitionAvailable();
+    } catch {
+      available = false;
+    }
+    if (!available) {
+      setSupported(false);
+      onErrorRef.current?.(STT_UNAVAILABLE_MSG);
+      return;
+    }
+
+    if (Platform.OS === "android") {
+      const services = getAndroidSpeechServices();
+      if (services.length === 0) {
+        onErrorRef.current?.(STT_UNAVAILABLE_MSG);
+        return;
+      }
+    }
+
+    const session = sessionRef.current + 1;
+    sessionRef.current = session;
+    startingRef.current = true;
+    setIsStarting(true);
+    pendingStopRef.current = false;
+    pendingCancelRef.current = false;
+    finalRef.current = "";
+    finalsPartsRef.current = [];
+
+    if (!hasPermissionRef.current) {
+      const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      hasPermissionRef.current = !!perm.granted;
+      if (!perm.granted) {
+        if (sessionRef.current === session) {
+          startingRef.current = false;
+          setIsStarting(false);
+          onErrorRef.current?.("Permissão de microfone negada.");
+        }
+        return;
+      }
+    }
+
+    if (sessionRef.current !== session) return;
+
+    try {
+      ExpoSpeechRecognitionModule.start({
+        lang,
+        interimResults: true,
+        continuous: false,
+      });
+    } catch {
+      if (sessionRef.current === session) {
+        startingRef.current = false;
+        setIsStarting(false);
+        onErrorRef.current?.("Não foi possível iniciar o microfone.");
+      }
+      return;
+    }
+
+    setTimeout(() => {
+      if (sessionRef.current !== session) return;
+      if (startingRef.current) {
+        startingRef.current = false;
+        setIsStarting(false);
+        if (pendingStopRef.current || pendingCancelRef.current) {
+          tryStopOrCancel();
+        }
+      }
+    }, START_TIMEOUT_MS);
+  }, [lang, listening, tryStopOrCancel, finishSession]);
+
+  const stop = useCallback(() => {
+    if (startingRef.current && !listening) {
+      pendingStopRef.current = true;
+      return;
+    }
+    if (!listening && !startingRef.current) return;
+
+    pendingStopRef.current = true;
+    pendingCancelRef.current = false;
+    tryStopOrCancel();
+  }, [listening, tryStopOrCancel]);
+
+  const cancel = useCallback(() => {
+    sessionRef.current += 1;
+    pendingCancelRef.current = true;
+    pendingStopRef.current = false;
+
+    if (startingRef.current && !listening) {
+      startingRef.current = false;
+      setIsStarting(false);
+      finishSession();
+      return;
+    }
+
+    if (!listening && !startingRef.current) {
+      finishSession();
+      return;
+    }
+
+    tryStopOrCancel();
+  }, [listening, tryStopOrCancel, finishSession]);
+
+  return { supported, listening, isStarting, recordingDurationMs, start, stop, cancel };
 }

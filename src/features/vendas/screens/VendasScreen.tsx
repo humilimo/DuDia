@@ -61,7 +61,15 @@ export function VendasScreen() {
     if (!cart.hasItems && showCheckout) setShowCheckout(false);
   }, [cart.hasItems, showCheckout]);
 
-  const speech = useSpeech({
+  const {
+    supported: speechSupported,
+    listening: speechListening,
+    isStarting: speechStarting,
+    recordingDurationMs: speechDurationMs,
+    start: speechStart,
+    stop: speechStop,
+    cancel: speechCancel,
+  } = useSpeech({
     onResult: async (transcript) => {
       if (!transcript.trim()) {
         setProcessing(false);
@@ -127,11 +135,27 @@ export function VendasScreen() {
       }
     },
     onError: (msg) => toast.show(msg, "danger"),
+    onEmpty: () => {
+      setProcessing(false);
+      toast.show(
+        "Não ouvi nada. Segure o microfone enquanto fala e solte ao terminar.",
+        "warning",
+      );
+    },
   });
 
   useEffect(() => () => {
-    void speech.stop();
-  }, [speech]);
+    void speechStop();
+  }, [speechStop]);
+
+  const listExtraData = useMemo(
+    () => ({
+      order: cart.order,
+      itemCount: cart.itemCount,
+      stocks: products.map((p) => `${p.id}:${p.stock}`).join("|"),
+    }),
+    [cart.order, cart.itemCount, products],
+  );
 
   const lowStock = useMemo(
     () => products.filter((p) => p.stock > 0 && p.stock <= settings.lowStockThreshold),
@@ -236,6 +260,7 @@ export function VendasScreen() {
             ) : (
               <FlatList
                 data={filteredProducts}
+                extraData={listExtraData}
                 keyExtractor={(item) => item.id}
                 numColumns={3}
                 style={styles.list}
@@ -281,16 +306,18 @@ export function VendasScreen() {
           toast.show("Pedido limpo", "warning");
         }}
         rightSlot={
-          speech.supported ? (
+          speechSupported ? (
             <MicButton
-              listening={speech.listening}
-              processing={processing}
-              durationMs={speech.recordingDurationMs}
-              onStart={speech.start}
-              onStop={speech.stop}
+              listening={speechListening}
+              processing={processing || speechStarting}
+              durationMs={speechDurationMs}
+              onStart={() => {
+                void speechStart();
+              }}
+              onStop={speechStop}
               onCancel={() => {
                 setProcessing(false);
-                void speech.cancel();
+                void speechCancel();
               }}
             />
           ) : null

@@ -79,7 +79,7 @@ Detalhes por camada em `app/AGENTS.md`, `src/AGENTS.md`, `src/features/AGENTS.md
 ## Gotchas
 
 - **Pasta `android/`** é gerada por `expo prebuild`. Mudanças nativas vão em [app.json](app.json) e ressincronizam com `npx expo prebuild --platform android --clean`.
-- **expo-speech-recognition**: o callback `onResult` em `useSpeech` é chamado **no evento `end`** com a transcrição final acumulada. Não dispare lógica pesada dentro de `result` (interim).
+- **expo-speech-recognition**: `onResult` roda no evento `end` quando há texto; se estiver vazio, chama-se `onEmpty`. Não dispare lógica pesada dentro de `result` (interim). Em telas, cleanup no desmonte deve depender de `stop` (callback estável), não do objeto retornado por `useSpeech`.
 - **`store.addSale`** ajusta estoque internamente — não chame `adjustStock` adicionalmente após `addSale`.
 - **Quantidades**: produtos `un` são inteiros, `kg` aceitam decimais. Sempre arredondar com `toFixed(3)` em operações de estoque.
 - **Imagens base64**: redimensionar via `uriToResizedDataUrl(uri, 320)` antes de persistir, para não estourar AsyncStorage.
