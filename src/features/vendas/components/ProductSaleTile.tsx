@@ -33,10 +33,9 @@ export function ProductSaleTile({
   const low = !empty && product.stock <= lowStockThreshold;
   const tone = empty ? "danger" : low ? "warning" : "default";
   const reachedStock = +quantity.toFixed(3) >= +product.stock.toFixed(3);
-  const tileH = tileWidth;
 
   return (
-    <Card variant="flat" padding="none" tone={tone} style={[styles.card, { width: tileWidth, height: tileH }]}>
+    <Card variant="flat" padding="none" tone={tone} style={[styles.card, { width: tileWidth, minHeight: tileWidth }]}>
       <View style={styles.body}>
         <Pressable
           onPress={onPressEditQuantity}
@@ -48,7 +47,7 @@ export function ProductSaleTile({
             <ProductAvatar
               name={product.name}
               photo={product.photo}
-              size={Math.min(48, Math.floor(tileWidth * 0.36))}
+              size={Math.min(40, Math.floor(tileWidth * 0.3))}
             />
             {quantity > 0 ? (
               <View style={styles.badgeWrap}>
@@ -61,7 +60,7 @@ export function ProductSaleTile({
               </View>
             ) : null}
           </View>
-          <Text variant="caption" numberOfLines={2} style={styles.name}>
+          <Text variant="caption" numberOfLines={1} style={styles.name}>
             {product.name}
           </Text>
           <Text variant="caption" tone="muted" numberOfLines={1} style={styles.price}>
@@ -113,11 +112,10 @@ function makeStyles(t: Tokens) {
     pressMain: {
       flex: 1,
       minHeight: 0,
-      paddingBottom: 4,
+      paddingBottom: 2,
       alignItems: "center",
       justifyContent: "flex-start",
       gap: 2,
-      overflow: "hidden",
     },
     avatarWrap: {
       alignItems: "center",
@@ -130,9 +128,9 @@ function makeStyles(t: Tokens) {
       top: -4,
       right: -4,
     },
-    name: { textAlign: "center", width: "100%" },
-    price: { textAlign: "center" },
-    stockHint: { textAlign: "center", fontSize: 10 },
+    name: { textAlign: "center", width: "100%", flexShrink: 0 },
+    price: { textAlign: "center", flexShrink: 0 },
+    stockHint: { textAlign: "center", fontSize: 10, flexShrink: 0 },
     stepperBar: {
       flexShrink: 0,
       width: "100%",

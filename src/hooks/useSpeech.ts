@@ -10,6 +10,32 @@ interface Options {
   lang?: string;
 }
 
+type StartMode = "ondevice" | "network";
+
+const HYBRID_FALLBACK_ERRORS = new Set([
+  "network",
+  "service-not-allowed",
+  "language-not-supported",
+  "language-unavailable",
+]);
+
+function toUserErrorMessage(error: string) {
+  switch (error) {
+    case "network":
+      return "Não foi possível reconhecer agora. Tentamos modo offline e internet, mas o serviço de voz falhou.";
+    case "service-not-allowed":
+      return "O serviço de reconhecimento de voz não está disponível neste aparelho.";
+    case "language-not-supported":
+    case "language-unavailable":
+      return "O idioma pt-BR não está disponível no reconhecimento de voz deste aparelho.";
+    case "no-speech":
+    case "speech-timeout":
+      return "Não detectei fala. Tente novamente falando um pouco mais perto do microfone.";
+    default:
+      return "Não foi possível usar o microfone agora. Tente novamente.";
+  }
+}
+
 export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
   const [supported, setSupported] = useState(true);
   const [listening, setListening] = useState(false);
@@ -22,6 +48,9 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
   const listeningRef = useRef(false);
   const pendingStartRef = useRef(false);
   const suppressClientErrorRef = useRef(false);
+  const supportsOnDeviceRef = useRef(false);
+  const startModeRef = useRef<StartMode>("network");
+  const fallbackAttemptedRef = useRef(false);
 
   useEffect(() => {
     onResultRef.current = onResult;
@@ -35,8 +64,10 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
   useEffect(() => {
     try {
       setSupported(ExpoSpeechRecognitionModule.isRecognitionAvailable());
+      supportsOnDeviceRef.current = ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
     } catch {
       setSupported(false);
+      supportsOnDeviceRef.current = false;
     }
   }, []);
 
@@ -73,6 +104,7 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
 
   useSpeechRecognitionEvent("end", () => {
     pendingStartRef.current = false;
+    fallbackAttemptedRef.current = false;
     setListening(false);
     const text = finalRef.current.trim();
     finalRef.current = "";
@@ -99,8 +131,42 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
       suppressClientErrorRef.current = false;
       return;
     }
-    onErrorRef.current?.(event.message || event.error);
+    const canFallback =
+      startModeRef.current === "ondevice" &&
+      !fallbackAttemptedRef.current &&
+      HYBRID_FALLBACK_ERRORS.has(event.error);
+    if (canFallback) {
+      fallbackAttemptedRef.current = true;
+      startModeRef.current = "network";
+      try {
+        pendingStartRef.current = true;
+        ExpoSpeechRecognitionModule.start({
+          lang,
+          interimResults: true,
+          continuous: false,
+          requiresOnDeviceRecognition: false,
+        });
+        return;
+      } catch {
+        pendingStartRef.current = false;
+      }
+    }
+    onErrorRef.current?.(toUserErrorMessage(event.error));
   });
+
+  const startWithMode = useCallback(
+    (mode: StartMode) => {
+      startModeRef.current = mode;
+      pendingStartRef.current = true;
+      ExpoSpeechRecognitionModule.start({
+        lang,
+        interimResults: true,
+        continuous: false,
+        requiresOnDeviceRecognition: mode === "ondevice",
+      });
+    },
+    [lang],
+  );
 
   const start = useCallback(async () => {
     if (listeningRef.current || pendingStartRef.current) return;
@@ -114,17 +180,17 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
     }
     try {
       finalRef.current = "";
-      pendingStartRef.current = true;
-      ExpoSpeechRecognitionModule.start({
-        lang,
-        interimResults: true,
-        continuous: false,
-      });
+      fallbackAttemptedRef.current = false;
+      if (supportsOnDeviceRef.current) {
+        startWithMode("ondevice");
+      } else {
+        startWithMode("network");
+      }
     } catch {
       pendingStartRef.current = false;
       onErrorRef.current?.("Não foi possível iniciar o microfone.");
     }
-  }, [lang]);
+  }, [startWithMode]);
 
   const stop = useCallback(() => {
     if (pendingStartRef.current) {
@@ -151,6 +217,7 @@ export function useSpeech({ onResult, onError, lang = "pt-BR" }: Options) {
   const cancel = useCallback(() => {
     pendingStartRef.current = false;
     suppressClientErrorRef.current = false;
+    fallbackAttemptedRef.current = false;
     try {
       ExpoSpeechRecognitionModule.abort();
     } catch {
