@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { Badge, Card, QuantityStepper, Text } from "@/src/components/ui";
+import { Trash2 } from "lucide-react-native";
+import { Badge, Card, IconButton, QuantityStepper, Text } from "@/src/components/ui";
 import { ProductAvatar } from "@/src/components/ProductAvatar";
 import type { Product } from "@/src/types";
 import { useTheme, type Tokens } from "@/src/theme";
@@ -15,6 +16,7 @@ interface Props {
   onAdd: () => void;
   onRemove: () => void;
   onPressEditQuantity: () => void;
+  onClearQuantity?: () => void;
 }
 
 export function ProductSaleTile({
@@ -26,6 +28,7 @@ export function ProductSaleTile({
   onAdd,
   onRemove,
   onPressEditQuantity,
+  onClearQuantity,
 }: Props) {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
@@ -36,6 +39,17 @@ export function ProductSaleTile({
 
   return (
     <Card variant="flat" padding="none" tone={tone} style={[styles.card, { width: tileWidth, minHeight: tileWidth }]}>
+      {quantity > 0 && onClearQuantity ? (
+        <View style={styles.trashWrap} pointerEvents="box-none">
+          <IconButton
+            label={`Remover todas as unidades de ${product.name}`}
+            tone="danger"
+            size={40}
+            icon={<Trash2 size={18} color={tokens.palette.danger} />}
+            onPress={onClearQuantity}
+          />
+        </View>
+      ) : null}
       <View style={styles.body}>
         <Pressable
           onPress={onPressEditQuantity}
@@ -139,6 +153,12 @@ function makeStyles(t: Tokens) {
     },
     stepperInner: {
       maxWidth: "100%",
+    },
+    trashWrap: {
+      position: "absolute",
+      top: t.spacing.xs,
+      right: t.spacing.xs,
+      zIndex: 2,
     },
   });
 }

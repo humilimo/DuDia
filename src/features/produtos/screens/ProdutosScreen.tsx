@@ -351,7 +351,7 @@ function makeStyles(t: Tokens) {
     listContent: { gap: t.spacing.sm, paddingBottom: t.spacing.xxxl },
     footer: {
       paddingHorizontal: t.spacing.lg,
-      paddingVertical: t.spacing.md,
+      paddingVertical: t.spacing.sm,
     },
     footerRow: {
       flexDirection: "row",
@@ -360,6 +360,6 @@ function makeStyles(t: Tokens) {
       gap: t.spacing.sm,
     },
     footerGhost: { flexShrink: 0 },
-    footerMain: { flex: 1, minHeight: 76, paddingVertical: t.spacing.md },
+    footerMain: { flex: 1, minHeight: 60, paddingVertical: t.spacing.sm },
   });
 }

@@ -21,6 +21,10 @@ export function ProductListItem({ product, lowStockThreshold, onEdit }: Props) {
   const empty = product.stock <= 0;
   const low = !empty && product.stock <= lowStockThreshold;
   const tone = empty ? "danger" : low ? "warning" : "default";
+  const hasCost =
+    product.costPrice !== undefined && product.costPrice > 0;
+  const profit = hasCost ? +(product.price - (product.costPrice ?? 0)).toFixed(2) : 0;
+  const profitPositive = profit >= 0;
 
   return (
     <Card variant="flat" padding="sm" tone={tone} style={styles.row}>
@@ -44,6 +48,12 @@ export function ProductListItem({ product, lowStockThreshold, onEdit }: Props) {
             </Text>
           )}
         </View>
+        {hasCost ? (
+          <Text variant="caption" tone={profitPositive ? "success" : "danger"}>
+            Lucro: {profitPositive ? "+" : "−"}
+            {fmtBRL(Math.abs(profit))}/{product.unit}
+          </Text>
+        ) : null}
         <QuantityStepper
           onDecrement={() => {
             store.adjustStock(product.id, -1);

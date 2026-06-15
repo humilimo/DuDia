@@ -1,9 +1,8 @@
-import { useMemo, useRef, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { useMemo, useState } from "react";
+import { ScrollView, StyleSheet, Switch, View } from "react-native";
 import {
   Bell,
   LayoutGrid,
-  LogOut,
   Moon,
   PackagePlus,
   ShoppingCart,
@@ -24,11 +23,9 @@ import {
   ScreenContainer,
   ScreenHeader,
   Text,
-  useToast,
 } from "@/src/components/ui";
 import { useSettings, settingsStore } from "@/src/lib/storage/settings";
-import { useStore, resetStoreData } from "@/src/lib/domain/store";
-import { feedback } from "@/src/lib/utils/feedback";
+import { useStore } from "@/src/lib/domain/store";
 import { useTheme, type Tokens } from "@/src/theme";
 
 const HELP_CARDS = {
@@ -81,11 +78,9 @@ export function PerfilScreen() {
   const settings = useSettings();
   const { products, sales } = useStore();
   const { tokens, mode, setMode } = useTheme();
-  const toast = useToast();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const [helpKey, setHelpKey] = useState<HelpKey | null>(null);
   const help = helpKey ? HELP_CARDS[helpKey] : null;
-  const lastTapRef = useRef(0);
 
   const helpTopicIcon = (key: HelpKey) => {
     const c = tokens.palette.foreground;
@@ -104,31 +99,6 @@ export function PerfilScreen() {
   function update<K extends keyof typeof settings>(key: K, value: (typeof settings)[K]) {
     settingsStore.update({ [key]: value });
   }
-
-  const handleReset = () => {
-    const now = Date.now();
-    if (now - lastTapRef.current < 1200) {
-      Alert.alert(
-        "Apagar todos os dados?",
-        "Isso vai remover todos os produtos e vendas deste aparelho. Não dá para desfazer.",
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Apagar tudo",
-            style: "destructive",
-            onPress: async () => {
-              await resetStoreData();
-              feedback("warn");
-              toast.show("Dados apagados", "warning");
-            },
-          },
-        ],
-      );
-    } else {
-      toast.show("Toque duas vezes para confirmar", "warning");
-    }
-    lastTapRef.current = now;
-  };
 
   return (
     <ScreenContainer>
@@ -247,21 +217,6 @@ export function PerfilScreen() {
             </Text>
           </Card>
         </View>
-
-        <Text variant="overline" tone="muted" style={styles.section}>
-          Zona de risco
-        </Text>
-        <Card variant="flat" tone="danger" padding="md" style={styles.card}>
-          <Text variant="body" tone="danger">
-            Apagar todos os dados deste aparelho. Toque duas vezes para confirmar.
-          </Text>
-          <Button
-            label="Apagar tudo"
-            variant="danger"
-            icon={<LogOut size={18} color={tokens.palette.dangerForeground} />}
-            onPress={handleReset}
-          />
-        </Card>
 
         <Text variant="caption" tone="subtle" style={styles.footer}>
           Dados salvos apenas neste aparelho.

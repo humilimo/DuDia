@@ -189,7 +189,7 @@ export function VendasScreen() {
     const horizontalPad = tokens.spacing.lg * 2;
     const innerWidth = windowWidth - horizontalPad;
     const gap = tokens.spacing.sm;
-    const tileWidth = (innerWidth - gap * 2) / 3;
+    const tileWidth = (innerWidth - gap) / 2;
     return { gap, tileWidth };
   }, [windowWidth, tokens.spacing.lg, tokens.spacing.sm]);
 
@@ -232,6 +232,7 @@ export function VendasScreen() {
         title={fmtBRL(stats.total)}
         subtitle={`${todayLabel} · ${stats.count} ${stats.count === 1 ? "venda" : "vendas"}`}
         brand="Total de hoje"
+        compact
       />
 
       <View style={styles.body}>
@@ -273,7 +274,7 @@ export function VendasScreen() {
                 data={filteredProducts}
                 extraData={listExtraData}
                 keyExtractor={(item) => `${item.id}-${item.stock}`}
-                numColumns={3}
+                numColumns={2}
                 removeClippedSubviews={false}
                 style={styles.list}
                 columnWrapperStyle={{ gap: gridMetrics.gap, marginBottom: gridMetrics.gap }}
@@ -299,6 +300,10 @@ export function VendasScreen() {
                         feedback("ok");
                       }}
                       onPressEditQuantity={() => setQtySheetProduct(p)}
+                      onClearQuantity={() => {
+                        cart.setQuantity(p, 0);
+                        feedback("warn");
+                      }}
                     />
                   </View>
                 )}

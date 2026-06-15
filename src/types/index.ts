@@ -5,6 +5,7 @@ export interface Product {
   unit: string;
   stock: number;
   photo?: string;
+  costPrice?: number;
 }
 
 export interface SaleItem {

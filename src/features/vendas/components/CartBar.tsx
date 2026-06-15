@@ -69,11 +69,11 @@ function makeStyles(t: Tokens) {
       justifyContent: "space-between",
       gap: t.spacing.sm,
       paddingHorizontal: t.spacing.lg,
-      paddingVertical: t.spacing.md,
+      paddingVertical: t.spacing.sm,
     },
     clearBtn: { flexShrink: 0 },
-    sellBtn: { flex: 1, minHeight: 76, paddingVertical: t.spacing.md },
+    sellBtn: { flex: 1, minHeight: 60, paddingVertical: t.spacing.sm },
     btnContent: { alignItems: "center", flex: 1 },
-    totalText: { fontSize: 26, lineHeight: 30 },
+    totalText: { fontSize: 20, lineHeight: 24 },
   });
 }

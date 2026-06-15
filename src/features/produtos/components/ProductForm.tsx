@@ -30,6 +30,7 @@ export function ProductForm({ visible, onClose, editingProduct = null }: Props) 
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [costPrice, setCostPrice] = useState("");
   const [unit, setUnit] = useState<"kg" | "un">("kg");
   const [stock, setStock] = useState("");
   const [photo, setPhoto] = useState<string | undefined>();
@@ -41,6 +42,7 @@ export function ProductForm({ visible, onClose, editingProduct = null }: Props) 
   const reset = () => {
     setName("");
     setPrice("");
+    setCostPrice("");
     setUnit("kg");
     setStock("");
     setPhoto(undefined);
@@ -58,6 +60,11 @@ export function ProductForm({ visible, onClose, editingProduct = null }: Props) 
     if (editingProduct) {
       setName(editingProduct.name);
       setPrice(priceToInput(editingProduct.price));
+      setCostPrice(
+        editingProduct.costPrice !== undefined && editingProduct.costPrice > 0
+          ? priceToInput(editingProduct.costPrice)
+          : "",
+      );
       setUnit(editingProduct.unit === "un" ? "un" : "kg");
       setStock(stockToInput(editingProduct));
       setPhoto(editingProduct.photo);
@@ -107,11 +114,14 @@ export function ProductForm({ visible, onClose, editingProduct = null }: Props) 
     setSubmitted(true);
     const p = parseFloat(price.replace(",", "."));
     const s = parseFloat(stock.replace(",", ".")) || 0;
+    const cRaw = parseFloat(costPrice.replace(",", "."));
+    const c = Number.isFinite(cRaw) && cRaw > 0 ? cRaw : undefined;
     if (!name.trim() || !p) return;
     if (editingProduct) {
       store.updateProduct(editingProduct.id, {
         name: name.trim(),
         price: p,
+        costPrice: c,
         unit,
         stock: unit === "un" ? Math.max(0, Math.round(s)) : +Math.max(0, s).toFixed(3),
         photo,
@@ -120,6 +130,7 @@ export function ProductForm({ visible, onClose, editingProduct = null }: Props) 
       store.addProduct({
         name: name.trim(),
         price: p,
+        costPrice: c,
         unit,
         stock: unit === "un" ? Math.max(0, Math.round(s)) : +Math.max(0, s).toFixed(3),
         photo,
@@ -215,7 +226,7 @@ export function ProductForm({ visible, onClose, editingProduct = null }: Props) 
 
       <View style={styles.priceRow}>
         <Input
-          label="Preço"
+          label="Valor de venda"
           placeholder="0,00"
           keyboardType="decimal-pad"
           value={price}
@@ -240,6 +251,20 @@ export function ProductForm({ visible, onClose, editingProduct = null }: Props) 
       </View>
 
       <Input
+        label="Valor de compra/produção"
+        placeholder="0,00"
+        keyboardType="decimal-pad"
+        value={costPrice}
+        onChangeText={setCostPrice}
+        hint="Opcional · usado para ver lucro"
+        leadingIcon={
+          <Text variant="bodyStrong" tone="muted">
+            R$
+          </Text>
+        }
+      />
+
+      <Input
         label={isEdit ? "Quantidade em estoque" : "Estoque inicial"}
         placeholder="0"
         keyboardType="decimal-pad"
@@ -257,10 +282,7 @@ export function ProductForm({ visible, onClose, editingProduct = null }: Props) 
       />
 
       {isEdit ? (
-        <View style={styles.dangerZone}>
-          <Text variant="overline" tone="danger" style={styles.dangerLabel}>
-            Zona de perigo
-          </Text>
+        <View style={styles.deleteZone}>
           <Button
             label="Excluir produto do estoque"
             variant="danger"
@@ -300,13 +322,9 @@ function makeStyles(t: Tokens) {
     priceField: { flex: 1 },
     unitWrap: { gap: 4 },
     unitRow: { flexDirection: "row", gap: t.spacing.xs },
-    dangerZone: {
+    deleteZone: {
       marginTop: t.spacing.lg,
-      paddingTop: t.spacing.md,
       gap: t.spacing.sm,
-      borderTopWidth: 1,
-      borderTopColor: t.palette.border,
     },
-    dangerLabel: { marginBottom: t.spacing.xs },
   });
 }
